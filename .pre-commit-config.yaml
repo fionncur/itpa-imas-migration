@@ -1,0 +1,21 @@
+repos:
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.4.2
+    hooks:
+      - id: black
+        args: ["-l", "120"]
+
+  # Export crosswalk spreadsheets to a git-diffable CSV under a csv/ subdir.
+  - repo: local
+    hooks:
+      - id: crosswalk-xlsx-to-csv
+        name: crosswalk xlsx -> csv
+        language: python
+        additional_dependencies: [xlsx2csv]
+        files: ^resources/mappings/.*\.xlsx$
+        entry: >
+          python -c "import os, sys, subprocess; from xlsx2csv import Xlsx2csv;
+          outs=[os.path.join(os.path.dirname(f), 'csv', os.path.basename(f)[:-5]+'.csv') for f in sys.argv[1:]];
+          [os.makedirs(os.path.dirname(o), exist_ok=True) for o in outs];
+          [Xlsx2csv(f, outputencoding='utf-8').convert(o) for f, o in zip(sys.argv[1:], outs)];
+          subprocess.run(['git', 'add', *outs], check=True)"

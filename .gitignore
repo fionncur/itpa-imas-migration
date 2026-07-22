@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+myenv/
+
+# Source databases (data files are not tracked)
+resources/input/
+
+# Migration outputs
+resources/results/
+
+# Scratch notebooks
+notebooks/_notebooks/
+
+# Excel lock files
+~$*.xlsx
+
+# PDFs 
+*.pdf
+
+# Local tooling config
+.mcp.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

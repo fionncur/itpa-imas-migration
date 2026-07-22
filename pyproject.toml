@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "itpa-imas-migration"
+version = "0.1.0"
+description = "Migration of ITPA scalar tokamak databases into IMAS IDS, driven by reviewed crosswalks."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "LGPL-3.0-or-later" }
+authors = [{ name = "Fionn Curran" }]
+dependencies = [
+    "imas-python>=2.2",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "openpyxl>=3.1",
+    "rich-argparse>=1.4",
+    "pint>=0.23",
+    "jsonschema>=4.20",
+    "imas-simdb>=0.15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "black>=24.4"]
+
+[project.scripts]
+idsmigration = "itpa_imas_migration.idsmigration:main"
+generate-crosswalk = "itpa_imas_migration.generate_crosswalk:main"
+
+[tool.uv]
+# imas-simdb declares this C-extension backport unconditionally, but it is only
+# needed on Python < 3.11.
+override-dependencies = [
+    "backports-datetime-fromisoformat>=1.0 ; python_version < '3.11'",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["itpa_imas_migration*"]
+
+[tool.black]
+line-length = 120
+target-version = ["py311"]
+
