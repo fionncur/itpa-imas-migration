@@ -17,7 +17,7 @@ import re
 import logging
 import time
 import pathlib
-from datetime import timedelta
+from datetime import datetime, timedelta
 import imas
 import pandas as pd
 import numpy as np
@@ -378,7 +378,7 @@ def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: 
         # Evaluate the expression with the data row's columns bound as bare variables, so a
         # formula like "TIMEX - TIMEY" resolves to data_row["TIMEX"] - data_row["TIMEY"].
         try:
-            result = eval(cw_row["transform_args"], data_row.to_dict())
+            result = eval(cw_row["transform_args"], {**data_row.to_dict(), "datetime": datetime})
         except Exception as exc:
             raise ValueError(f"Row {cw_row.name}: formula {cw_row['transform_args']!r} failed: {exc}") from exc
         return [(ids_branch, result)]
@@ -567,7 +567,7 @@ def _check_formula_identifiers(df: pd.DataFrame, data: pd.DataFrame) -> None:
     """Every bare name in a formula must be a CSV column or a Python builtin."""
     import builtins
 
-    allowed = set(data.columns) | set(dir(builtins))
+    allowed = set(data.columns) | set(dir(builtins)) | {"datetime"}
     for _, row in df[df["transform"] == "formula"].iterrows():
         if not isinstance(row["transform_args"], str):
             raise ValueError(f"Row {row.name}: transform='formula' but transform_args is missing")
