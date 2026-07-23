@@ -76,7 +76,7 @@ def profile_numeric(col: str, values: pd.Series, machines: pd.Series, lines: lis
     sentinels = {}  # value -> (verdict, [signal descriptions])
     if continuous and n >= 10:
         counts = values.value_counts()
-        # Low-precision data (2-3 significant digits) repeats exact values routinely, so the
+        # Low-precision data (2-3 significant digits) repeats exact values quite often, so the
         # candidate threshold scales with the column's typical multiplicity n/n_distinct:
         # a candidate must repeat ~5x more often than an ordinary value of this column does.
         threshold = max(3, math.ceil(5 * n / n_distinct))
