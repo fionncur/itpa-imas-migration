@@ -329,7 +329,7 @@ def write_descriptors(
 
     Each is written at the sibling of every value's parent node (branch[:-1]), so it
     lands at the correct path for each expanded AoS slot -- e.g. the source sibling, or
-    a temporary row's identifier name/description.
+    a manifest row's identifier name/description.
     """
     for branch, _ in writes:
         anchor = branch[: len(branch) - value_leaf_depth]
@@ -456,7 +456,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--simdb",
         action="store_true",
-        help="Ingest each migrated pulse into the local SimDB; diverts temporary quantities "
+        help="Ingest each migrated pulse into the local SimDB; diverts manifest quantities "
         "into manifest variables instead of a temporary IDS \t(requires the simdb package)",
     )
     parser.add_argument(
@@ -488,7 +488,7 @@ def load_crosswalk(mapping_path: str) -> pd.DataFrame:
 
     # Include only implemented transforms (identity/dictionary/formula) with an accepted status.
     keep_mask = df["transform"].isin(["identity", "dictionary", "formula"]) & df["status"].isin(
-        ["mapped", "temporary", "mapped_caveat"]
+        ["mapped", "manifest", "mapped_caveat"]
     )
     df = df[keep_mask]
 
@@ -522,7 +522,7 @@ def _check_dd_paths(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
     """Every imas_path must exist in the DD; needs_source rows need both leaves."""
     ids_cache: dict[str, Any] = {}
     bad: list[str] = []
-    for _, row in df[df["status"] != "temporary"].iterrows():
+    for _, row in df[df["status"] != "manifest"].iterrows():
         if not isinstance(row["imas_path"], str):
             continue
         for path in row["imas_path"].split("&"):
@@ -623,17 +623,17 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> 
             f"WARNING: needs_source=True but source is missing for rows: {list(df.index[bad_source])} -- companion leaf will not be written"
         )
 
-    # Upfront validation: temporary rows must have a csv_dtype string.
-    is_temp = df["status"] == "temporary"
+    # Upfront validation: manifest rows must have a csv_dtype string.
+    is_temp = df["status"] == "manifest"
     bad_dtype = is_temp & ~df["csv_dtype"].apply(lambda x: isinstance(x, str) and x.strip() != "")
     if bad_dtype.any():
-        print(f"WARNING: status 'temporary' but csv_dtype is missing for rows: {list(df.index[bad_dtype])} -- skipping")
+        print(f"WARNING: status 'manifest' but csv_dtype is missing for rows: {list(df.index[bad_dtype])} -- skipping")
 
     return df
 
 
 def temp_var_name(cw_row: pd.Series) -> tuple[str, str]:
-    """Resolve a temporary row's identifier/name and its provenance kind.
+    """Resolve a manifest row's identifier/name and its provenance kind.
 
     Returns (imas_standard_name, "standard_name") when set, else (csv_column, "db_variable").
     """
@@ -652,7 +652,7 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
       _num_descs  : pre-classified numeric descriptors (leaf_segments, number)
       _dict_descs : pre-classified dict descriptors    (leaf_segments, dict)
 
-    Temporary rows are folded into the same structure with a stable AoS index, assigned here
+    Manifest rows are folded into the same structure with a stable AoS index, assigned here
     in crosswalk order so a variable keeps the same slot in every pulse (deterministic layout).
     """
     temp_idx: dict[str, int] = {}  # dictionary to track temp paths: indices
@@ -660,7 +660,7 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
     paths_list, value_leaf_list = [], []
     str_descs_list, num_descs_list, dict_descs_list = [], [], []
     for _, cw_row in df.iterrows():
-        if cw_row["status"] == "temporary":
+        if cw_row["status"] == "manifest":
             bucket_raw = cw_row["csv_dtype"]
             if not isinstance(bucket_raw, str) or bucket_raw.strip() == "":
                 paths_list.append([])  # missing csv_dtype, already warned upfront
@@ -963,7 +963,7 @@ def run_migration(
     """
     # name -> "standard_name"/"db_variable", used to split SimDB manifest variables (see make_manifest).
     temp_name_kind = dict(
-        temp_var_name(cw_row) for _, cw_row in crosswalk.loc[crosswalk["status"] == "temporary"].iterrows()
+        temp_var_name(cw_row) for _, cw_row in crosswalk.loc[crosswalk["status"] == "manifest"].iterrows()
     )
 
     machine_rows = crosswalk.loc[crosswalk["imas_path"] == "summary/machine", "csv_column"]

@@ -9,14 +9,14 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `csv_column`         | str                  | Column/variable name in the source CSV |
 | `csv_unit`           | str                  | Unit of the source value |
 | `imas_unit`          | str                  | Unit of the IDS target field (automatically populated by DD) |
-| `csv_dtype`          | str                  | Storage bucket for `status=temporary` rows (see [Temporary IDSs](#temporary-idss)) |
+| `csv_dtype`          | str                  | Storage bucket for `status=manifest` rows (see [Temporary IDSs](#temporary-idss)) |
 | `imas_dtype`         | str                  | IDS data type (automatically populated by DD) |
 | `imas_path`          | str                  | Target path inside the IDS (see [Path notation](#path-notation-and-indexing)) |
 | `csv_description`    | str                  | Description of the source variable from the original database. |
 | `imas_description`   | str                  | Description of the IDS target field (automatically populated by DD) |
-| `imas_standard_name` | str                  | IMAS standard name for the variable; used as `identifier/name` for `temporary` rows (falls back to `csv_column` when blank) |
+| `imas_standard_name` | str                  | IMAS standard name for the variable; used as `identifier/name` for `manifest` rows (falls back to `csv_column` when blank) |
 | `kind`               | str                  | `constant`, `dynamic`, or `static` (automatically populated by DD) |
-| `status`             | str                  | `mapped`, `mapped_caveat`, `temporary`, `derived` or `discard` (see [Status values](#status-values)) |
+| `status`             | str                  | `mapped`, `mapped_caveat`, `manifest`, `derived` or `discard` (see [Status values](#status-values)) |
 | `notes`              | str                  | Free-text notes, caveats, warnings, etc. |
 | `transform`          | str                  | `identity`, `dictionary`, or `formula` (see [Transform types](#transform-types)) |
 | `transform_args`     | str                  | Arguments for the transform (dict literal or Python expression). |
@@ -230,7 +230,7 @@ Errors that cannot be expressed in these three forms — compound (`±15% abs + 
 
 ## Temporary IDSs
 
-Rows with `status = temporary` are **not** written to a named IDS in the physics hierarchy.  Instead they are stored in IMAS's `temporary` IDS, which provides generic typed buckets for values of arbitrary dimensionality (0-D scalars through 5-D arrays).
+Rows with `status = manifest` are **not** written to a named IDS in the physics hierarchy.  Instead they are stored in IMAS's `temporary` IDS, which provides generic typed buckets for values of arbitrary dimensionality (0-D scalars through 5-D arrays).
 
 The `csv_dtype` column names the bucket and its indexing mode:
 
@@ -260,7 +260,7 @@ dynamic_float1d(n)/value/time              ← pulse's time vector (set after al
 dynamic_float1d(n)/identifier/name         ← imas_standard_name (if set), else csv_column
 ```
 
-The `imas_path` column is ignored for temporary rows; the entire path is derived from `csv_dtype`.  Temporary rows are otherwise processed identically to physics-IDS rows (same transforms, same value/descriptor split).
+The `imas_path` column is ignored for manifest rows; the entire path is derived from `csv_dtype`.  Manifest rows are otherwise processed identically to physics-IDS rows (same transforms, same value/descriptor split).
 
 ### Diversion under `--simdb`
 
@@ -274,7 +274,7 @@ By default the `temporary` IDS is written to the HDF5 backend like any other roo
 | --------------- | --------- |
 | `mapped`        | Primary, authoritative mapping to the IDS hierarchy. |
 | `mapped_caveat` | Written to the IDS but subject to known caveats (sign conventions, approximations). See `notes`. |
-| `temporary`     | Stored in the `temporary` IDS instead of a physics IDS.  Useful for quantities that have no stable IMAS path yet. |
+| `manifest`      | Stored in the `temporary` IDS instead of a physics IDS (diverted into the SimDB manifest under `--simdb`).  Useful for quantities that have no stable IMAS path yet. |
 | `derived`       | Not currently implemented; row is skipped.  Reserved for quantities that must be computed from other fields. |
 
 Rows without a recognised `transform` value (`identity`, `dictionary`, `formula`) are also silently excluded from processing.
@@ -307,7 +307,7 @@ anyway); recoverable ones **warn** and continue:
 | Dictionary keys cover every value observed in the data column | warn, listing each uncovered value with its count (those rows are skipped silently at run time) |
 | Machine keys in `errors` and dict-valued `source` cells name machines observed in the data (`"default"` exempt) | warn (a key that never matches writes nothing) |
 | `needs_source` rows have a usable `source` | warn, companion leaf not written |
-| `temporary` rows have a `csv_dtype` | warn, row skipped |
+| `manifest` rows have a `csv_dtype` | warn, row skipped |
 
 ---
 
@@ -385,10 +385,10 @@ Each entry's manifest carries:
 | --------------------------------------- | ------ |
 | `alias`                                 | **default mode:** `{dataset}/{machine}/{pulse}` — **`--per-time-slice` mode:** `{dataset}-{machine}-{index}`, where `dataset` is the `--experiment` value and `index` is a per-machine counter |
 | `metadata.dataset` / `metadata.machine` | the experiment label and the pulse's `summary/machine` value |
-| `metadata.standard_name.*`              | temporary quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has an `imas_standard_name`, keyed by that standard name |
-| `metadata.dbvariable.*`                 | the same, for temporary quantities with no `imas_standard_name`, keyed by `csv_column` instead |
+| `metadata.standard_name.*`              | manifest quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has an `imas_standard_name`, keyed by that standard name |
+| `metadata.dbvariable.*`                 | the same, for manifest quantities with no `imas_standard_name`, keyed by `csv_column` instead |
 | `outputs.uri`                           | `imas:hdf5?path=<pulse_dir>#summary` — a **reference** to the on-disk summary IDS |
 
-Each temporary quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a set `imas_standard_name` sends it to `standard_name.<name>`; a blank one falls back to `dbvariable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet — e.g. `simdb simulation query standard_name.loss_power=...` vs `dbvariable.SELEC2007=...`.
+Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a set `imas_standard_name` sends it to `standard_name.<name>`; a blank one falls back to `dbvariable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet — e.g. `simdb simulation query standard_name.loss_power=...` vs `dbvariable.SELEC2007=...`.
 
 SimDB is a metadata catalogue: it stores the manifest plus a checksummed *reference* to the `summary` IDS, not its array data.  The `summary` IDS is therefore always written to HDF5, with or without `--simdb`; only the `temporary` IDS write is suppressed when ingesting.  A `summary/machine` mapping row is required; the script raises at load if `--simdb` is used without one.

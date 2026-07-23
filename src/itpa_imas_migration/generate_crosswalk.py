@@ -70,7 +70,7 @@ FORMULA_COLS = {"imas_unit", "imas_dtype", "imas_description", "kind"}
 STATUS_COLORS = {
     "mapped": "C6DEB5",  # light green
     "mapped_caveat": "FEEE76",  # yellow
-    "temporary": "FF5B5B",  # red
+    "manifest": "FF5B5B",  # red
     "derived": "8FAADC",  # light blue
     "discard": "B1A0C7",  # light purple
 }
