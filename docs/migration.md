@@ -48,7 +48,7 @@ transform:      dictionary
 transform_args: {"MO": 11, "W": 2, "Be": 10}
 ```
 
-If a CSV value is not present as a key, the row is skipped with a warning (only for the first instance of each value) rather than raising an error.
+String cells are stripped of leading/trailing whitespace at load (the CSVs are padded), so dictionary keys are authored against the stripped values (`"MO"`, never `" MO"`). If a CSV value is not present as a key, the row is skipped for that pulse rather than raising an error. All uncovered values are reported upfront, with counts, by the pre-run validation (see [Upfront validation](#upfront-validation)); the runtime skip itself is silent.
 
 #### Dictionary of lists
 
@@ -289,6 +289,25 @@ The crosswalk is **one-row-per-source-column**, not one-row-per-target-path.  A 
 2. **Dictionary of lists** — one source value expands into multiple elements of an AoS via wildcard indexing.
 
 Both mechanisms are resolved within `resolve_writes()` and require no special columns beyond those already described.
+
+---
+
+## Upfront validation
+
+Before any pulse is written, `validate()` checks the crosswalk against the data CSV and the Data
+Dictionary (at `--dd-version`). Fatal problems **raise** (the migration would crash or write garbage
+anyway); recoverable ones **warn** and continue:
+
+| Check | Behaviour |
+| ----- | --------- |
+| Every `csv_column` exists in the data CSV | raise |
+| Every `imas_path` (after `&` split and index stripping) exists in the DD; for `needs_source` rows both `source_fields` leaves exist under the node | raise |
+| Formula `transform_args` parse, and every bare name is a CSV column or Python builtin | raise |
+| Dictionary / formula rows have a `transform_args` string | raise |
+| Dictionary keys cover every value observed in the data column | warn, listing each uncovered value with its count (those rows are skipped silently at run time) |
+| Machine keys in `errors` and dict-valued `source` cells name machines observed in the data (`"default"` exempt) | warn (a key that never matches writes nothing) |
+| `needs_source` rows have a usable `source` | warn, companion leaf not written |
+| `temporary` rows have a `csv_dtype` | warn, row skipped |
 
 ---
 

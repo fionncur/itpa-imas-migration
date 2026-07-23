@@ -22,9 +22,6 @@ python -m venv .venv
 pip install -e .
 ```
 
-If `backports-datetime-fromisoformat` (pulled in by `imas-simdb`) fails to build run `pip install --no-deps imas-simdb` first,
-then re-run the editable install.
-
 The migration reference (crosswalk specification, SimDB ingestion) is in
 [docs/migration.md](docs/migration.md).
 

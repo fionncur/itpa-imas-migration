@@ -45,7 +45,7 @@ def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
     return start
 
 
-HERE = pathlib.Path(__file__).resolve().parent  # .../src/itpa_imas_migration
+HERE = pathlib.Path(__file__).resolve().parent
 ROOT = _find_repo_root(HERE)
 mappings_dir = ROOT / "resources" / "mappings"
 input_dir = ROOT / "resources" / "input"
@@ -350,7 +350,6 @@ def backfill_time(ids: IDS, times: Any = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-_warned_dict_misses: set[tuple[Any, Any]] = set()  # (row, value) pairs already warned about
 _warned_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already warned about
 
 
@@ -367,12 +366,7 @@ def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: 
             raise ValueError(f"Row {cw_row.name}: transform='dictionary' but transform_args is missing")
         dictionary = ast.literal_eval(cw_row["transform_args"])
         if value not in dictionary:
-            if (cw_row.name, value) not in _warned_dict_misses:
-                _warned_dict_misses.add((cw_row.name, value))
-                print(
-                    f"WARNING: Row {cw_row.name}: value {value!r} from column '{cw_row['csv_column']}' not in dictionary -- skipping"
-                )
-            return []
+            return []  # uncovered values are reported upfront by validate()
         mapped = dictionary[value]
         if isinstance(mapped, list):  # Dictionary of lists feature, expand AoS to fit len(mapped).
             return [(replace_wildcard_index(ids_branch, i), v) for i, v in enumerate(mapped)]
@@ -523,12 +517,99 @@ def load_dataset(data_path: str) -> pd.DataFrame:
     return data.map(lambda x: (x.strip() or np.nan) if isinstance(x, str) else x)
 
 
-def validate(df: pd.DataFrame, data: pd.DataFrame) -> pd.DataFrame:
+def _check_dd_paths(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
+    """Every imas_path must exist in the DD; needs_source rows need both leaves."""
+    ids_cache: dict[str, Any] = {}
+    bad: list[str] = []
+    for _, row in df[df["status"] != "temporary"].iterrows():
+        if not isinstance(row["imas_path"], str):
+            continue
+        for path in row["imas_path"].split("&"):
+            segments = [parse_seg(seg)[0] for seg in path.strip().split("/")]
+            root, node_path = segments[0], "/".join(segments[1:])
+            try:
+                if root not in ids_cache:
+                    ids_cache[root] = factory.new(root)
+                node_meta = ids_cache[root].metadata[node_path]
+            except (KeyError, imas.exception.IDSNameError):
+                bad.append(f"row {row.name} ('{row['csv_column']}'): '{path}' not in DD")
+                continue
+            if row["needs_source"]:
+                for leaf in row["_source_pair"]:
+                    try:
+                        node_meta[leaf]
+                    except KeyError:
+                        bad.append(
+                            f"row {row.name} ('{row['csv_column']}'): '{path}' has no '{leaf}' sub-field required by needs_source"
+                        )
+    if bad:
+        raise ValueError("imas_path validation failed:\n  " + "\n  ".join(bad))
+
+
+def _check_dictionary_coverage(df: pd.DataFrame, data: pd.DataFrame) -> None:
+    """Report every observed CSV value that a dictionary transform has no key for (rows will be skipped)."""
+    for _, row in df[df["transform"] == "dictionary"].iterrows():
+        if not isinstance(row["transform_args"], str):
+            raise ValueError(f"Row {row.name}: transform='dictionary' but transform_args is missing")
+        dictionary = ast.literal_eval(row["transform_args"])
+        observed = data[row["csv_column"]].dropna()
+        uncovered = observed[~observed.isin(dictionary.keys())].value_counts()
+        if len(uncovered):
+            details = ", ".join(f"{v!r} x{c}" for v, c in uncovered.items())
+            print(
+                f"WARNING: Row {row.name}: dictionary for column '{row['csv_column']}' does not cover "
+                f"observed value(s) {details} -- these rows will be skipped"
+            )
+
+
+def _check_formula_identifiers(df: pd.DataFrame, data: pd.DataFrame) -> None:
+    """Every bare name in a formula must be a CSV column or a Python builtin."""
+    import builtins
+
+    allowed = set(data.columns) | set(dir(builtins))
+    for _, row in df[df["transform"] == "formula"].iterrows():
+        if not isinstance(row["transform_args"], str):
+            raise ValueError(f"Row {row.name}: transform='formula' but transform_args is missing")
+        try:
+            tree = ast.parse(row["transform_args"], mode="eval")
+        except SyntaxError as e:
+            raise ValueError(f"Row {row.name}: formula {row['transform_args']!r} does not parse: {e}")
+        unknown = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} - allowed
+        if unknown:
+            raise ValueError(
+                f"Row {row.name}: formula {row['transform_args']!r} references unknown name(s) {sorted(unknown)} "
+                f"-- not CSV columns or builtins"
+            )
+
+
+def _check_machine_keys(df: pd.DataFrame, data: pd.DataFrame) -> None:
+    """Machine keys in errors/source dicts should name machines observed in the data (typo guard)."""
+    machine_rows = df.loc[df["imas_path"] == "summary/machine", "csv_column"]
+    if machine_rows.empty:
+        return  # run_migration raises later if errors/dict-source are used without a machine row
+    observed = set(data[machine_rows.iloc[0]].dropna())
+    for _, row in df.iterrows():
+        for label, d in (("errors", row["_errors"]), ("source", row["source"])):
+            if isinstance(d, dict):
+                unknown = set(d) - observed - {"default"}
+                if unknown:
+                    print(
+                        f"WARNING: Row {row.name}: {label} dict for column '{row['csv_column']}' has machine "
+                        f"key(s) {sorted(unknown)} not present in the data -- they will never match"
+                    )
+
+
+def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> pd.DataFrame:
     """Upfront validation; warns and fixes up the `source` column in place where needed."""
     # Upfront validation: all csv_columns must exist in data.
     missing_cols = set(df["csv_column"]) - set(data.columns)
     if missing_cols:
         raise ValueError(f"csv_column(s) not found in data CSV: {missing_cols}")
+
+    _check_dd_paths(df, factory)
+    _check_dictionary_coverage(df, data)
+    _check_formula_identifiers(df, data)
+    _check_machine_keys(df, data)
 
     # Upfront validation: needs_source rows must have a source value -- either a descriptor string
     # written into each pulse, a numeric value written per pulse, or a machine-keyed dict.
@@ -1004,9 +1085,9 @@ def main() -> None:
     data_path, mapping_path, output_dir = resolve_io_paths(args)
     crosswalk = load_crosswalk(mapping_path)
     data = load_dataset(data_path)
-    crosswalk = validate(crosswalk, data)  # validate *does* modify the df in case of "bad_source"
-    crosswalk = build_write_spec(crosswalk)
     factory = imas.IDSFactory(version=args.dd_version)
+    crosswalk = validate(crosswalk, data, factory)  # validate *does* modify the df in case of "bad_source"
+    crosswalk = build_write_spec(crosswalk)
 
     simdb_enabled = args.simdb
     config = db = None
