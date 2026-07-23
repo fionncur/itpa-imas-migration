@@ -37,8 +37,9 @@ except ImportError:
 
 logging.getLogger("imas").setLevel(logging.WARNING)  # Avoid IMAS errors for type mismatches.
 
+
 def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
-    """Walk up from *start* to the repo root (the dir holding resources/ or pyproject.toml)."""
+    """Walk up from start to the repo root (the dir holding resources/ or pyproject.toml)."""
     for candidate in (start, *start.parents):
         if (candidate / "resources").is_dir() or (candidate / "pyproject.toml").is_file():
             return candidate
