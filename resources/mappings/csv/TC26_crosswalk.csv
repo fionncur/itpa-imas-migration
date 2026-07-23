@@ -27,7 +27,7 @@ PGASA,u,u,,FLT_1D,summary/volume_average/meff_hydrogenic,Effective mass number o
 LHTIME,,,dynamic_float1d(:),,,L-H transition time in s.,,,,manifest,,identity,,,,,,
 AUXHEAT,,,constant_string1d(:),,,"Auxilliary heating method. Options are NB, IC, EC and combinations thereof.",,,,manifest,,identity,,,,,,
 PFLOSS,,,dynamic_float1d(:),,,Charge exchange and unconfined orbit losses in W.,power_due_to_first_orbit_loss+power_due_to_charge_exchange,,,manifest,,identity,,,,,,
-PL,,,,,,Loss Power not corrected for charge exchange and unconfined orbit losses in W.,,,,derived,PL = PLTH + PFLOSS,identity,,,,,,
+PL,W,,,,,Loss Power not corrected for charge exchange and unconfined orbit losses in W.,,,,derived,PL = PLTH + PFLOSS,identity,,,,,,
 ,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,,,,
