@@ -26,6 +26,7 @@ from openpyxl.styles import Alignment, PatternFill
 from openpyxl.styles.differential import DifferentialStyle
 from openpyxl.formatting.rule import Rule
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.filters import SortCondition, SortState
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
@@ -74,6 +75,9 @@ STATUS_COLORS = {
     "derived": "8FAADC",  # light blue
     "discard": "B1A0C7",  # light purple
 }
+
+# Desired row grouping order for the status column.
+STATUS_SORT_ORDER = ["mapped", "mapped_caveat", "manifest", "derived", "discard"]
 
 
 def _extract_dd_rows(root) -> list[dict]:
@@ -257,8 +261,24 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
     # Freeze header row and first column
     ws.freeze_panes = "B2"
 
+    # AutoFilter with a stored custom-list sort on status.
+    filter_ref = f"{status_col_letter}1:{status_col_letter}{num_rows + 1}"
+    sort_ref = f"{status_col_letter}2:{status_col_letter}{num_rows + 1}"
+    ws.auto_filter.ref = filter_ref
+    ws.auto_filter.sortState = SortState(
+        ref=filter_ref,
+        sortCondition=[SortCondition(ref=sort_ref, customList=",".join(STATUS_SORT_ORDER))],
+    )
+
 
 MANUAL_COLS = [c for c in CROSSWALK_COLUMNS if c not in FORMULA_COLS]
+
+
+def _sort_by_status(df: pd.DataFrame) -> pd.DataFrame:
+    """Group rows by STATUS_SORT_ORDER; anything else keeps its existing order at the end."""
+    rank = {status: i for i, status in enumerate(STATUS_SORT_ORDER)}
+    key = df["status"].map(lambda s: rank.get(s, len(STATUS_SORT_ORDER)))
+    return df.iloc[key.sort_values(kind="stable").index].reset_index(drop=True)
 
 
 def _coerce(col_name: str, val) -> object:
@@ -320,6 +340,7 @@ def main() -> None:
         src = pathlib.Path(args.from_existing)
         print(f"Reading existing crosswalk {src} ...")
         from_df = pd.read_excel(src, sheet_name=0)
+        from_df = _sort_by_status(from_df)
         if len(from_df) > num_rows:
             print(f"  {len(from_df)} rows in source exceeds --num-rows={num_rows}; using {len(from_df)}.")
             num_rows = len(from_df)
