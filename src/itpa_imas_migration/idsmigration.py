@@ -613,7 +613,11 @@ def _check_dictionary_coverage(df: pd.DataFrame, data: pd.DataFrame) -> None:
             raise ValueError(f"Row {row.name}: transform='dictionary' but transform_args is missing")
         dictionary = ast.literal_eval(row["transform_args"])
         observed = data[row["csv_column"]].dropna()
-        uncovered = observed[~observed.isin(dictionary.keys())].value_counts()
+        sentinels = parse_sentinels(row.get("sentinels", None))
+        sentinels = sentinels if sentinels is not None else []
+        uncovered = observed[
+            ~observed.isin(dictionary.keys()) & ~observed.eq("") & ~observed.isin(sentinels)
+        ].value_counts()  # Manually filter empty string
         if len(uncovered):
             details = ", ".join(f"{v!r} x{c}" for v, c in uncovered.items())
             print(
