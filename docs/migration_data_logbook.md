@@ -22,6 +22,7 @@
 |---|---|---|---|
 | Exact duplicate row | all | JET 98969 @ TIME=50.135s, byte-identical across all 30 cols | 2 timeslices / 1 shot |
 | Whitespace in key | `TOK` | `" CMOD"` (leading space) vs `"CMOD"` | 25/77 CMOD timeslices |
+| Undocumented column | `FRACNMIN` | Not listed in the TC26 variable definition sheet; meaning unknown, so not added to `TC26_crosswalk.xlsx`. Numeric, fill 656/689 (95%), range [0, 1.697] excluding a `-1e-08` sentinel (x52, CMOD-exclusive) -- name suggests a minority-species fraction, but unconfirmed. | all 689 rows |
 
 ## 2. Cross-dataset overlap
 
