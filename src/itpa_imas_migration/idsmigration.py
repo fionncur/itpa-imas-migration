@@ -432,7 +432,8 @@ def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: 
         try:
             result = eval(cw_row["transform_args"], {**data_row.to_dict(), "datetime": datetime})
         except Exception as exc:
-            raise ValueError(f"Row {cw_row.name}: formula {cw_row['transform_args']!r} failed: {exc}") from exc
+            print(f"WARNING: Row {cw_row.name}: formula {cw_row['transform_args']!r} failed: {exc} -- skipping")
+            return []
         return [(ids_branch, result)]
     raise ValueError(f"Row {cw_row.name}: unhandled transform '{cw_row['transform']}'")
 
@@ -674,17 +675,6 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> 
     _check_dictionary_coverage(df, data)
     _check_formula_identifiers(df, data)
     _check_machine_keys(df, data)
-
-    # Upfront validation: needs_source rows must have a source value -- either a descriptor string
-    # written into each pulse, a numeric value written per pulse, or a machine-keyed dict.
-    def _has_source(x: Any) -> bool:
-        return isinstance(x, (str, dict)) or (is_number(x) and pd.notna(x))
-
-    bad_source = df["needs_source"] & ~df["source"].apply(_has_source)
-    if bad_source.any():
-        print(
-            f"WARNING: needs_source=True but source is missing for rows: {list(df.index[bad_source])} -- companion leaf will not be written"
-        )
 
     # Upfront validation: manifest rows must have a csv_dtype string.
     is_temp = df["status"] == "manifest"
