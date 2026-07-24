@@ -24,6 +24,11 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves written when `needs_source=True`; defaults to `("value", "source")` |
 | `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
 | `errors`             | str                  | Optional `{machine: error}` dict literal giving per-machine error bars (see [Error bars](#error-bars-errors)) |
+| `sentinels`          | str                  | Optional list literal of source no-data placeholders, numbers and/or strings (e.g. `[-9.999e-09, 1.7e+38, "N/A"]`); a source value **exactly equal** to an entry is treated as missing so the leaf falls back to the IMAS empty (`EMPTY_FLOAT`/`EMPTY_INT`, or `""` for string leaves). |
+
+### Missing values and no-data markers
+
+A source value that does not match its target leaf's dtype (a string NA marker like `-`, `.` or `????`, an empty cell, any non-number bound for a numeric leaf) is dropped, leaving the leaf at its IMAS empty (`EMPTY_FLOAT`/`EMPTY_INT`). 
 
 ## Transform types
 
