@@ -63,6 +63,21 @@ def is_number(x: Any) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
+def _as_number(value: Any) -> float | None:
+    """Convert a source value to a float for a numeric leaf; None if it is not a real number.
+
+    Accepts python/numpy numbers and numeric strings; rejects bools, non-numeric strings (e.g. a
+    '-' marker), None and NaN.
+    """
+    if isinstance(value, bool):
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if np.isnan(num) else num
+
+
 # ---------------------------------------------------------------------------
 # Path / segment parsing
 # ---------------------------------------------------------------------------
@@ -138,6 +153,32 @@ def parse_errors(errors_val: Any) -> dict | None:
     for machine, spec in parsed.items():
         _validate_error_spec(machine, spec)
     return parsed
+
+
+def parse_sentinels(sentinels_val: Any) -> list | None:
+    """Parse a `sentinels` cell into a list of no-data placeholders (numbers and/or strings).
+
+    A source value exactly equal to any entry is treated as missing, so the target leaf falls back to
+    the IMAS empty. Numbers keep the int/float type ast.literal_eval gives them; strings are stripped
+    to match load_dataset's stripping.
+    """
+    if not isinstance(sentinels_val, str) or sentinels_val.strip() == "":
+        return None
+    try:
+        parsed = ast.literal_eval(sentinels_val.strip())
+    except (ValueError, SyntaxError) as e:
+        raise ValueError(f"sentinels {sentinels_val!r} is not a valid Python literal: {e}")
+    if not isinstance(parsed, (list, tuple)):
+        raise ValueError(f"sentinels must be a list literal, e.g. [-9.999e-09, 'N/A']; got {parsed!r}")
+    out = []
+    for v in parsed:
+        if is_number(v):
+            out.append(v)
+        elif isinstance(v, str):
+            out.append(v.strip())
+        else:
+            raise ValueError(f"sentinels entries must be numbers or strings; got {v!r}")
+    return out
 
 
 def _try_parse_dict(x: Any) -> Any:
@@ -256,6 +297,17 @@ def set_leaf(
     parent, leaf_seg = resolve_parent(ids, branch)
     leaf, _ = parse_seg(leaf_seg)
     target = getattr(parent, leaf)
+
+    # Type gate: a value that does not match its leaf's dtype is treated as missing, so the leaf keeps
+    # its IMAS empty.
+    dtype_name = getattr(getattr(target.metadata, "data_type", None), "name", None)
+    if dtype_name in ("INT", "FLT"):
+        num = _as_number(value)
+        if num is None:
+            return
+        value = int(num) if dtype_name == "INT" else num
+    elif dtype_name == "STR" and isinstance(value, str) and not any(c.isalnum() for c in value):
+        return
 
     if isinstance(target, imas.ids_struct_array.IDSStructArray):
         if target.metadata.type.is_dynamic:
@@ -509,13 +561,20 @@ def load_crosswalk(mapping_path: str) -> pd.DataFrame:
     else:
         errors = [None] * len(df)
     df["_errors"] = pd.Series(errors, index=df.index, dtype=object)
+
+    # Parse the optional sentinels column into lists of no-data placeholders (or None).
+    if "sentinels" in df.columns:
+        sentinels = [parse_sentinels(s) for s in df["sentinels"]]
+    else:
+        sentinels = [None] * len(df)
+    df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
     return df
 
 
 def load_dataset(data_path: str) -> pd.DataFrame:
-    """Import experimental data from csv and strip leading/trailing whitespace from string cells."""
-    data = pd.read_csv(data_path, na_values=["-", "????????", "??????????", "********", "."])
-    return data.map(lambda x: (x.strip() or np.nan) if isinstance(x, str) else x)
+    """Import experimental data from csv, stripping whitespace from string cells."""
+    data = pd.read_csv(data_path)
+    return data.map(lambda x: x.strip() if isinstance(x, str) else x)
 
 
 def _check_dd_paths(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
@@ -745,6 +804,12 @@ def process_pulse(
         var_label = cw_row["csv_column"]
         value = data_row[cw_row["csv_column"]]
         value_present = not pd.isna(value)
+
+        # A source value equal to one of the row's sentinels is a deliberate no-data placeholder:
+        # treat it as missing so the leaf falls back to the IMAS empty.
+        sentinels = cw_row.get("_sentinels")
+        if value_present and sentinels and value in sentinels:
+            value_present = False
 
         # Descriptor types pre-classified in build_write_spec; numeric ungated, string/dict gated on value.
         string_desc = cw_row["_str_descs"]

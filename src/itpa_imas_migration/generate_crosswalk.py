@@ -60,6 +60,7 @@ CROSSWALK_COLUMNS = [
     "source_fields",
     "source",
     "errors",
+    "sentinels",
 ]
 
 DD_COLUMNS = ["identifier", "description", "units", "data_type", "kind"]
@@ -110,15 +111,15 @@ def _extract_dd_rows(root) -> list[dict]:
     return rows
 
 
-# Column S (hidden) holds the normalised imas_path used by C/E/I/J.
+# Column T (hidden) holds the normalised imas_path used by C/E/I/J.
 # It strips the first &-delimited path and removes index suffixes in parentheses,
 # like (0), (:) etc.
-NORM_COL = "S"
-NORM_COL_IDX = 19  # 1-based
+NORM_COL = "T"
+NORM_COL_IDX = 20  # 1-based
 
 
 def _formula_norm(row: int) -> str:
-    """Path normalisation in the hidden helper column S,
+    """Path normalisation in the hidden helper column T,
 
     1. Take only the first &-separated path.
     2. Strip parenthetical index suffixes.
@@ -207,7 +208,7 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
     for col_idx, col_name in enumerate(CROSSWALK_COLUMNS, start=1):
         ws.cell(row=1, column=col_idx, value=col_name)
 
-    # Variable rows: normalised-path helper (col S, hidden) + visible formula columns
+    # Variable rows: normalised-path helper (col T, hidden) + visible formula columns
     for row in range(2, num_rows + 2):
         ws.cell(row=row, column=NORM_COL_IDX, value=_formula_norm(row))
         for col_name, builder in FORMULA_BUILDERS.items():
@@ -248,6 +249,7 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
         "source_fields": 22,
         "source": 22,
         "errors": 30,
+        "sentinels": 30,
     }
     for col_name, width in widths.items():
         ws.column_dimensions[col_map[col_name]].width = width
