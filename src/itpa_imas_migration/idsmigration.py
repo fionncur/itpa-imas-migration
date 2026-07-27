@@ -15,12 +15,14 @@ import argparse
 import ast
 import re
 import logging
+import sys
 import time
 import pathlib
 from datetime import datetime, timedelta
 import imas
 import pandas as pd
 import numpy as np
+import yaml
 
 from rich_argparse import RichHelpFormatter
 
@@ -255,6 +257,28 @@ def _values_equal(a: Any, b: Any) -> bool:
         return False
 
 
+KNOWN_RESOLVE_STRATEGIES = {"keep_first", "keep_last", "max", "min", "avoid"}
+
+
+def _resolve_conflict(strategy: str, old: Any, new: Any, avoid: list | None = None) -> Any:
+    """Reduce a pair of conflicting constant-leaf values to one, per a named strategy."""
+    if strategy == "keep_first":
+        return old
+    if strategy == "keep_last":
+        return new
+    if strategy == "max":
+        return max(old, new)
+    if strategy == "min":
+        return min(old, new)
+    if strategy == "avoid":
+        avoid = avoid or []
+        old_bad, new_bad = old in avoid, new in avoid
+        if old_bad and not new_bad:
+            return new
+        return old
+    raise ValueError(f"unknown resolve strategy {strategy!r}")
+
+
 def set_slice(parent: IDS, leaf: str, target: Any, value: Any, slice_index: int, n_slices: int) -> None:
     """Place `value` at `slice_index`, growing the leaf to `n_slices` with appropriate padding.
 
@@ -288,11 +312,14 @@ def set_leaf(
     n_slices: int = 1,
     const_ctx: str | None = None,
     label: str | None = None,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> None:
     """Write `value` to the leaf at `branch` for time-slice `slice_index` of an `n_slices` pulse.
 
     Dynamic numeric leaves are filled by array position; constant/static leaves are written once
-    and, when `n_slices > 1`, checked for agreement across slices (warn and keep first on mismatch).
+    and, when `n_slices > 1`, checked for agreement across slices. On mismatch, `resolve_spec`
+    (variable name -> {strategy, ...}, see `load_resolve_spec`) is consulted to reduce the
+    conflicting values; unconfigured variables keep a default of warning and keeping first.
     """
     parent, leaf_seg = resolve_parent(ids, branch)
     leaf, _ = parse_seg(leaf_seg)
@@ -326,17 +353,32 @@ def set_leaf(
     elif target.metadata.data_type.name == "STR" and target.metadata.ndim >= 1:
         set_slice(parent, leaf, target, value, slice_index, n_slices)
     else:
-        # Scalar / string leaf: constant or static. Write once; warn if it disagrees across slices.
+        # Scalar / string leaf: constant or static. Write once; on disagreement across slices,
+        # resolve via `resolve_spec` if the variable is configured, else warn and keep first.
         if n_slices > 1 and target.has_value:
             # Identify the quantity by its crosswalk variable name
             name = label or "/".join(branch)
-            if not _values_equal(target.value, value) and (const_ctx, name) not in _warned_const_mismatch:
-                _warned_const_mismatch.add((const_ctx, name))
-                print(
-                    f"WARNING: constant '{name}' differs across slices of pulse "
-                    f"{const_ctx}: {target.value!r} vs {value!r} -- keeping first"
-                )
-            return  # keep the first value
+            if not _values_equal(target.value, value):
+                spec = (resolve_spec or {}).get(name)
+                if spec is not None:
+                    resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
+                    if (const_ctx, name) not in _warned_const_mismatch:
+                        _warned_const_mismatch.add((const_ctx, name))
+                        _print_over_progress(
+                            f"WARNING: constant '{name}' differs across slices of pulse "
+                            f"{const_ctx}: {target.value!r} vs {value!r} -- resolved via "
+                            f"'{spec['strategy']}' -> {resolved!r}"
+                        )
+                    if not _values_equal(resolved, target.value):
+                        setattr(parent, leaf, resolved)
+                    return
+                if (const_ctx, name) not in _warned_const_mismatch:
+                    _warned_const_mismatch.add((const_ctx, name))
+                    _print_over_progress(
+                        f"WARNING: constant '{name}' differs across slices of pulse "
+                        f"{const_ctx}: {target.value!r} vs {value!r} -- keeping first"
+                    )
+            return  # keep the first value (or the value set by the resolved strategy above)
         setattr(parent, leaf, value)
 
 
@@ -347,10 +389,11 @@ def write_values(
     n_slices: int = 1,
     const_ctx: str | None = None,
     label: str | None = None,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> None:
     """Write resolved (branch, value) pairs to their leaves in the pulse `ids`."""
     for branch, value in writes:
-        set_leaf(ids, branch, value, slice_index, n_slices, const_ctx, label)
+        set_leaf(ids, branch, value, slice_index, n_slices, const_ctx, label, resolve_spec)
 
 
 def write_companions(
@@ -361,10 +404,11 @@ def write_companions(
     n_slices: int = 1,
     const_ctx: str | None = None,
     label: str | None = None,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> None:
     """Write each companion (leaf_segments, value) at `anchor`, the shared parent node."""
     for desc_leaf, desc_val in descriptors:
-        set_leaf(ids, anchor + list(desc_leaf), desc_val, slice_index, n_slices, const_ctx, label)
+        set_leaf(ids, anchor + list(desc_leaf), desc_val, slice_index, n_slices, const_ctx, label, resolve_spec)
 
 
 def write_descriptors(
@@ -376,6 +420,7 @@ def write_descriptors(
     n_slices: int = 1,
     const_ctx: str | None = None,
     label: str | None = None,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> None:
     """Write each descriptor (leaf_segments, value) into the pulse IDS alongside values.
 
@@ -385,7 +430,7 @@ def write_descriptors(
     """
     for branch, _ in writes:
         anchor = branch[: len(branch) - value_leaf_depth]
-        write_companions(ids, anchor, descriptors, slice_index, n_slices, const_ctx, label)
+        write_companions(ids, anchor, descriptors, slice_index, n_slices, const_ctx, label, resolve_spec)
 
 
 def backfill_time(ids: IDS, times: Any = None) -> None:
@@ -443,10 +488,28 @@ def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: 
 # ---------------------------------------------------------------------------
 
 
+_progress_dangling = False  # last stdout write was a \r-redrawn progress line, with no trailing newline
+_last_progress_width = 0  # length of that line, so the next redraw pads over any leftover characters
+
+
+def _print_over_progress(msg: str) -> None:
+    """Print `msg` on its own line, first breaking out of any dangling `\\r`-redrawn progress line."""
+    global _progress_dangling
+    if _progress_dangling:
+        print()
+        _progress_dangling = False
+    print(msg)
+
+
 def report_progress(
     count: int, total: int, label: Any, start: float, last_report: float, interval: float = 5.0
 ) -> float:
-    """Timed, counted progress for the long pulse loops (build-in-memory and write-to-disk)."""
+    """Timed, counted progress for the long pulse loops (build-in-memory and write-to-disk).
+
+    Redraws in place (carriage return, no newline) on an interactive terminal; falls back to one
+    line per update when stdout is redirected to a file/pipe, where redrawing would just garble.
+    """
+    global _progress_dangling, _last_progress_width
     now = time.monotonic()
     if now - last_report < interval:
         return last_report
@@ -454,18 +517,24 @@ def report_progress(
     rate = count / elapsed if elapsed > 0 else 0
     eta = (total - count) / rate if rate > 0 else 0
     pct = 100 * count / total
-    print(
+    msg = (
         f"Progress: {count:{len(str(total))}d}/{total} ({pct:3.1f}%)  pulse {label}  "
         f"elapsed {timedelta(seconds=int(elapsed))}  "
         f"ETA {timedelta(seconds=int(eta))}  "
         f"({rate:.1f} pulses/s)"
     )
+    if sys.stdout.isatty():
+        print(msg.ljust(_last_progress_width), end="\r", flush=True)
+        _last_progress_width = len(msg)
+        _progress_dangling = True
+    else:
+        print(msg)
     return now
 
 
 def report_summary(verb: str, count: int, total: int, start: float, suffix: str = "") -> None:
     """Closing one-line summary for a pulse loop."""
-    print(f"{verb} {count}/{total} pulses{suffix} in {timedelta(seconds=int(time.monotonic() - start))}")
+    _print_over_progress(f"{verb} {count}/{total} pulses{suffix} in {timedelta(seconds=int(time.monotonic() - start))}")
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +596,31 @@ def resolve_io_paths(args: argparse.Namespace) -> tuple[pathlib.Path, pathlib.Pa
     mapping_path = mappings_dir / args.mapping
     output_dir = ROOT / "resources" / "results" / args.experiment
     return data_path, mapping_path, output_dir
+
+
+def load_resolve_spec(mapping_path: pathlib.Path) -> dict[str, dict]:
+    """Load the optional per-dataset conflict-resolution sidecar next to a crosswalk.
+
+    The sidecar (`<mapping stem>.resolve.yaml`) maps a crosswalk variable name (csv_column) to a
+    resolution strategy applied when that variable's value disagrees across a pulse's time-slices
+    -- see `_resolve_conflict`. Absent file -> `{}` (today's warn-and-keep-first default for every
+    variable). No crosswalk-column or CLI-flag changes are needed to opt a variable in.
+    """
+    spec_path = pathlib.Path(mapping_path).with_suffix(".resolve.yaml")
+    if not spec_path.is_file():
+        return {}
+    with open(spec_path, encoding="utf-8") as f:
+        spec = yaml.safe_load(f) or {}
+    for name, entry in spec.items():
+        strategy = entry.get("strategy")
+        if strategy not in KNOWN_RESOLVE_STRATEGIES:
+            raise ValueError(
+                f"{spec_path}: {name!r} has unknown strategy {strategy!r}; expected one of "
+                f"{sorted(KNOWN_RESOLVE_STRATEGIES)}"
+            )
+        if strategy == "avoid" and not entry.get("avoid"):
+            raise ValueError(f"{spec_path}: {name!r} uses strategy 'avoid' but has no 'avoid' list")
+    return spec
 
 
 def load_crosswalk(mapping_path: str) -> pd.DataFrame:
@@ -783,13 +877,15 @@ def process_pulse(
     slice_index: int = 0,
     n_slices: int = 1,
     const_ctx: str | None = None,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> dict[str, IDS]:
     """Write one data row (= one time-slice) into the per-root IDS dict for a pulse.
 
     All values and their companion descriptors (provenance strings, identifier names) are
     written into the pulse IDS at `slice_index`. Pass a shared `pulse_ids` and increasing
     `slice_index` to accumulate a pulse's time-slices into one IDS set; the default
-    (fresh dict, single slice) reproduces the original one-IDS-per-row behaviour.
+    (fresh dict, single slice) reproduces the original one-IDS-per-row behaviour. `resolve_spec`
+    (see `load_resolve_spec`) is consulted when a constant leaf disagrees across slices.
     """
     if pulse_ids is None:
         pulse_ids = {}
@@ -832,6 +928,7 @@ def process_pulse(
                     n_slices,
                     const_ctx,
                     var_label,
+                    resolve_spec,
                 )
 
             if not value_present:
@@ -843,7 +940,7 @@ def process_pulse(
             # Write values to value path in the pulse IDS.
             if ids_root not in pulse_ids:
                 pulse_ids[ids_root] = new_ids(factory, ids_root)
-            write_values(pulse_ids[ids_root], writes, slice_index, n_slices, const_ctx, var_label)
+            write_values(pulse_ids[ids_root], writes, slice_index, n_slices, const_ctx, var_label, resolve_spec)
 
             # Write per-machine error bars to the "_error_upper" extension of each leaf path.
             # errors holds {machine: spec}; error_bar() resolves each spec against the leaf
@@ -859,12 +956,28 @@ def process_pulse(
                         if isinstance(v, (int, float, np.number, np.ndarray)) and not isinstance(v, bool)
                     ]
                     if error_writes:
-                        write_values(pulse_ids[ids_root], error_writes, slice_index, n_slices, const_ctx, var_label)
+                        write_values(
+                            pulse_ids[ids_root],
+                            error_writes,
+                            slice_index,
+                            n_slices,
+                            const_ctx,
+                            var_label,
+                            resolve_spec,
+                        )
 
             # Write string and machine-specific (dict) companion descriptors to the pulse IDS.
             if string_desc and writes:
                 write_descriptors(
-                    pulse_ids[ids_root], writes, string_desc, depth, slice_index, n_slices, const_ctx, var_label
+                    pulse_ids[ids_root],
+                    writes,
+                    string_desc,
+                    depth,
+                    slice_index,
+                    n_slices,
+                    const_ctx,
+                    var_label,
+                    resolve_spec,
                 )
             if dict_desc and writes:
                 machine = data_row.get(machine_col) if machine_col else None
@@ -875,7 +988,15 @@ def process_pulse(
                 ]
                 if resolved:
                     write_descriptors(
-                        pulse_ids[ids_root], writes, resolved, depth, slice_index, n_slices, const_ctx, var_label
+                        pulse_ids[ids_root],
+                        writes,
+                        resolved,
+                        depth,
+                        slice_index,
+                        n_slices,
+                        const_ctx,
+                        var_label,
+                        resolve_spec,
                     )
 
     return pulse_ids
@@ -995,7 +1116,7 @@ def simdb_ingest(db: Any, config: Any, manifest: "Manifest", alias: str, label: 
         db.insert_simulation(Simulation(manifest, config))
         return True
     except Exception as exc:
-        print(f"  SimDB ingest FAILED for {alias}: {exc}")
+        _print_over_progress(f"  SimDB ingest FAILED for {alias}: {exc}")
         failed.append(label)
         return False
 
@@ -1010,6 +1131,7 @@ def run_migration(
     config: Any = None,
     db: Any = None,
     per_time_slice: bool = True,
+    resolve_spec: dict[str, dict] | None = None,
 ) -> None:
     """Build and write each pulse to disk immediately, without accumulating in memory.
 
@@ -1084,6 +1206,7 @@ def run_migration(
                     slice_index=ti,
                     n_slices=n,
                     const_ctx=ctx,
+                    resolve_spec=resolve_spec,
                 )
             for ids in pulse_ids.values():
                 backfill_time(ids, times)
@@ -1143,6 +1266,7 @@ def main() -> None:
     """Run the CSV -> IDS migration pipeline."""
     args = parse_args()
     data_path, mapping_path, output_dir = resolve_io_paths(args)
+    resolve_spec = load_resolve_spec(mapping_path)
     crosswalk = load_crosswalk(mapping_path)
     data = load_dataset(data_path)
     factory = imas.IDSFactory(version=args.dd_version)
@@ -1168,6 +1292,7 @@ def main() -> None:
         config=config,
         db=db,
         per_time_slice=args.per_time_slice,
+        resolve_spec=resolve_spec,
     )
 
 
