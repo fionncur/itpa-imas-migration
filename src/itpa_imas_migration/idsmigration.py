@@ -10,7 +10,7 @@ the pulses to HDF5.
 See docs/migration.md for the crosswalk format and full behaviour reference.
 """
 
-from typing import Any
+from typing import Any, NamedTuple
 import argparse
 import ast
 import builtins
@@ -58,6 +58,16 @@ IDS = Any  # an IMAS top-level IDS object (summary, equilibrium, ...)
 Branch = list[str]  # ordered node segments, e.g. ["divertor(0)", "value"]
 Write = tuple[Branch, Any]  # a (branch, value) pair destined for one leaf
 Descriptor = tuple[Branch, Any]  # a (leaf_segments, value) pair written alongside the value in the pulse IDS
+
+
+class WriteContext(NamedTuple):
+    """Which time-slice of which pulse a write belongs to, and how constant conflicts are resolved."""
+
+    slice_index: int = 0
+    n_slices: int = 1
+    pulse: str | None = None
+    resolve_spec: dict[str, dict] | None = None
+    label: str | None = None
 
 
 def is_number(x: Any) -> bool:
@@ -262,7 +272,7 @@ def _resolve_conflict(strategy: str, old: Any, new: Any, avoid: list | None = No
     raise ValueError(f"unknown resolve strategy {strategy!r}")
 
 
-_seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already counted, at most once each
+_seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse context, leaf path) already counted, at most once each
 _conflict_counts: collections.Counter = collections.Counter()  # (leaf path, strategy label) -> pulses resolved
 
 
@@ -279,11 +289,12 @@ def report_conflict_summary() -> None:
     _print_over_progress("Constant conflicts resolved across slices:\n" + "\n".join(lines))
 
 
-def set_slice(parent: IDS, leaf: str, target: Any, value: Any, slice_index: int, n_slices: int) -> None:
-    """Place `value` at `slice_index`, growing the leaf to `n_slices` with appropriate padding.
+def set_slice(parent: IDS, leaf: str, target: Any, value: Any, context: WriteContext) -> None:
+    """Place `value` at `context.slice_index`, growing the leaf to `context.n_slices` with appropriate padding.
 
     Numeric leaves use IMAS empty placeholders; string leaves pad with "".
     """
+    n_slices = context.n_slices
     if target.metadata.data_type.name == "STR":
         cur = list(target.value) if target.has_value else []
         if len(cur) < n_slices:
@@ -298,26 +309,17 @@ def set_slice(parent: IDS, leaf: str, target: Any, value: Any, slice_index: int,
             if cur.size:
                 grown[: cur.size] = cur
             cur = grown
-    cur[slice_index] = value
+    cur[context.slice_index] = value
     setattr(parent, leaf, cur)
 
 
-def set_leaf(
-    ids: IDS,
-    branch: Branch,
-    value: Any,
-    slice_index: int = 0,
-    n_slices: int = 1,
-    const_ctx: str | None = None,
-    label: str | None = None,
-    resolve_spec: dict[str, dict] | None = None,
-) -> None:
-    """Write `value` to the leaf at `branch` for time-slice `slice_index` of an `n_slices` pulse.
+def set_leaf(ids: IDS, branch: Branch, value: Any, context: WriteContext = WriteContext()) -> None:
+    """Write `value` to the leaf at `branch` for time-slice `context.slice_index` of the pulse.
 
     Dynamic numeric leaves are filled by array position; constant/static leaves are written once
-    and, when `n_slices > 1`, checked for agreement across slices. On mismatch, `resolve_spec`
-    (variable name -> {strategy, ...}, see `load_resolve_spec`) is consulted to reduce the
-    conflicting values; unconfigured variables keep a default of warning and keeping first.
+    and, when `context.n_slices > 1`, checked for agreement across slices. On mismatch,
+    `context.resolve_spec` (variable name -> {strategy, ...}, see `load_resolve_spec`) is consulted to
+    reduce the conflicting values; unconfigured variables keep a default of warning and keeping first.
     """
     parent, leaf = resolve_parent(ids, branch)
     target = getattr(parent, leaf)
@@ -335,31 +337,31 @@ def set_leaf(
 
     if isinstance(target, imas.ids_struct_array.IDSStructArray):
         if target.metadata.type.is_dynamic:
-            if len(target) <= slice_index:
-                target.resize(slice_index + 1, keep=True)
-            target[slice_index] = value
+            if len(target) <= context.slice_index:
+                target.resize(context.slice_index + 1, keep=True)
+            target[context.slice_index] = value
         else:
             if len(target) == 0:
                 target.resize(1)
             target[0] = value
     elif isinstance(target, imas.ids_primitive.IDSNumericArray):
         if target.metadata.type.is_dynamic:
-            set_slice(parent, leaf, target, value, slice_index, n_slices)
+            set_slice(parent, leaf, target, value, context)
         else:
             setattr(parent, leaf, np.atleast_1d(value))
     elif target.metadata.data_type.name == "STR" and target.metadata.ndim >= 1:
-        set_slice(parent, leaf, target, value, slice_index, n_slices)
+        set_slice(parent, leaf, target, value, context)
     else:
         # Scalar / string leaf: constant or static. Write once; on disagreement across slices,
-        # resolve via `resolve_spec` if the variable is configured, else keep first. Every
+        # resolve via `context.resolve_spec` if the variable is configured, else keep first. Every
         # occurrence is tallied.
-        if n_slices > 1 and target.has_value:
+        if context.n_slices > 1 and target.has_value:
             # Identify the quantity by its crosswalk variable name
-            name = label or "/".join(branch)
+            name = context.label or "/".join(branch)
             if not _values_equal(target.value, value):
-                spec = (resolve_spec or {}).get(name)
-                if (const_ctx, name) not in _seen_const_mismatch:
-                    _seen_const_mismatch.add((const_ctx, name))
+                spec = (context.resolve_spec or {}).get(name)
+                if (context.pulse, name) not in _seen_const_mismatch:
+                    _seen_const_mismatch.add((context.pulse, name))
                     _conflict_counts[(name, spec["strategy"] if spec else "default (keep_first)")] += 1
                 if spec is not None:
                     resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
@@ -369,18 +371,10 @@ def set_leaf(
         setattr(parent, leaf, value)
 
 
-def write_values(
-    ids: IDS,
-    writes: list[Write],
-    slice_index: int = 0,
-    n_slices: int = 1,
-    const_ctx: str | None = None,
-    label: str | None = None,
-    resolve_spec: dict[str, dict] | None = None,
-) -> None:
+def write_values(ids: IDS, writes: list[Write], context: WriteContext = WriteContext()) -> None:
     """Write resolved (branch, value) pairs to their leaves in the pulse `ids`."""
     for branch, value in writes:
-        set_leaf(ids, branch, value, slice_index, n_slices, const_ctx, label, resolve_spec)
+        set_leaf(ids, branch, value, context)
 
 
 def write_descriptors(
@@ -388,11 +382,7 @@ def write_descriptors(
     writes: list[Write],
     descriptors: list[Descriptor],
     value_leaf_depth: int,
-    slice_index: int = 0,
-    n_slices: int = 1,
-    const_ctx: str | None = None,
-    label: str | None = None,
-    resolve_spec: dict[str, dict] | None = None,
+    context: WriteContext = WriteContext(),
 ) -> None:
     """Write each descriptor (leaf_segments, value) into the pulse IDS alongside values.
 
@@ -403,7 +393,7 @@ def write_descriptors(
     for branch, _ in writes:
         anchor = branch[: len(branch) - value_leaf_depth]
         for desc_leaf, desc_val in descriptors:
-            set_leaf(ids, anchor + list(desc_leaf), desc_val, slice_index, n_slices, const_ctx, label, resolve_spec)
+            set_leaf(ids, anchor + list(desc_leaf), desc_val, context)
 
 
 def backfill_time(ids: IDS, times: Any = None) -> None:
@@ -761,17 +751,12 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
     """
     temp_idx: dict[str, int] = {}  # dictionary to track temp paths: indices
     temp_seen: dict[str, Any] = {}  # resolved "temporary/..." path -> first row (clash warning)
-    paths_list, value_leaf_list = [], []
-    str_descs_list, num_descs_list, dict_descs_list = [], [], []
+    specs: list[tuple[list[str], str, list[Descriptor]]] = []
     for _, cw_row in df.iterrows():
         if cw_row["status"] == "manifest":
             bucket_raw = cw_row["csv_dtype"]
             if not isinstance(bucket_raw, str) or bucket_raw.strip() == "":
-                paths_list.append([])  # missing csv_dtype, already warned upfront
-                value_leaf_list.append("value")
-                str_descs_list.append([])
-                num_descs_list.append([])
-                dict_descs_list.append([])
+                specs.append(([], "value", []))  # missing csv_dtype, already warned upfront
                 continue
             bucket_base, _ = parse_seg(bucket_raw)
             if "(:)" in bucket_raw:
@@ -793,34 +778,34 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
             descriptors = [(["identifier", "name"], name_val)]
             if isinstance(cw_row["csv_description"], str):
                 descriptors.append((["identifier", "description"], cw_row["csv_description"]))
-            paths_list.append([path])
             # Dynamic temporary buckets (dynamic_float1d/dynamic_integer1d) hold their per-slice
             # series under value/data (over a local value/time); constant buckets store a scalar value.
-            value_leaf_list.append("value/data" if bucket_base.startswith("dynamic_") else "value")
-            str_descs_list.append([d for d in descriptors if isinstance(d[1], str)])
-            num_descs_list.append([d for d in descriptors if is_number(d[1])])
-            dict_descs_list.append([d for d in descriptors if isinstance(d[1], dict)])
+            value_leaf = "value/data" if bucket_base.startswith("dynamic_") else "value"
+            specs.append(([path], value_leaf, descriptors))
         else:
             imas_path = cw_row["imas_path"]
             if not isinstance(imas_path, str):
                 raise ValueError(f"Row {cw_row.name}: imas_path is missing")
-            paths_list.append(imas_path.split("&") if "&" in imas_path else [imas_path])
+            paths = imas_path.split("&") if "&" in imas_path else [imas_path]
             if cw_row["needs_source"]:
-                value_leaf_list.append(cw_row["_source_pair"][0])
                 source = cw_row["source"]
                 has_source = isinstance(source, (str, dict)) or (is_number(source) and pd.notna(source))
                 descriptors = [(cw_row["_source_pair"][1].split("/"), source)] if has_source else []
+                specs.append((paths, cw_row["_source_pair"][0], descriptors))
             else:
-                value_leaf_list.append("")
-                descriptors = []
-            str_descs_list.append([d for d in descriptors if isinstance(d[1], str)])
-            num_descs_list.append([d for d in descriptors if is_number(d[1])])
-            dict_descs_list.append([d for d in descriptors if isinstance(d[1], dict)])
-    df["_paths"] = pd.Series(paths_list, index=df.index, dtype=object)
-    df["_value_leaf"] = pd.Series(value_leaf_list, index=df.index, dtype=object)
-    df["_str_descs"] = pd.Series(str_descs_list, index=df.index, dtype=object)
-    df["_num_descs"] = pd.Series(num_descs_list, index=df.index, dtype=object)
-    df["_dict_descs"] = pd.Series(dict_descs_list, index=df.index, dtype=object)
+                specs.append((paths, "", []))
+
+    all_paths, all_leaves, all_descs = zip(*specs) if specs else ((), (), ())
+    idx = df.index
+    df["_paths"] = pd.Series(all_paths, index=idx, dtype=object)
+    df["_value_leaf"] = pd.Series(all_leaves, index=idx, dtype=object)
+    df["_str_descs"] = pd.Series(
+        [[d for d in ds if isinstance(d[1], str)] for ds in all_descs], index=idx, dtype=object
+    )
+    df["_num_descs"] = pd.Series([[d for d in ds if is_number(d[1])] for ds in all_descs], index=idx, dtype=object)
+    df["_dict_descs"] = pd.Series(
+        [[d for d in ds if isinstance(d[1], dict)] for ds in all_descs], index=idx, dtype=object
+    )
     return df
 
 
@@ -831,24 +816,19 @@ def process_pulse(
     machine_col: str | None = None,
     *,
     pulse_ids: dict[str, IDS] | None = None,
-    slice_index: int = 0,
-    n_slices: int = 1,
-    const_ctx: str | None = None,
-    resolve_spec: dict[str, dict] | None = None,
+    context: WriteContext = WriteContext(),
 ) -> dict[str, IDS]:
     """Write one data row (= one time-slice) into the per-root IDS dict for a pulse.
 
     All values and their companion descriptors (provenance strings, identifier names) are
-    written into the pulse IDS at `slice_index`. Pass a shared `pulse_ids` and increasing
-    `slice_index` to accumulate a pulse's time-slices into one IDS set; the default
-    (fresh dict, single slice) reproduces the original one-IDS-per-row behaviour. `resolve_spec`
-    (see `load_resolve_spec`) is consulted when a constant leaf disagrees across slices.
+    written into the pulse IDS at `context.slice_index`. Pass a shared `pulse_ids` and increasing
+    `context.slice_index` to accumulate a pulse's time-slices into one IDS set; the default
+    (fresh dict, single slice) reproduces the original one-IDS-per-row behaviour.
     """
     if pulse_ids is None:
         pulse_ids = {}
+    machine = data_row.get(machine_col) if machine_col else None
     for _, cw_row in crosswalk.iterrows():
-
-        var_label = cw_row["csv_column"]
         value = data_row[cw_row["csv_column"]]
         value_present = not pd.isna(value)
 
@@ -858,103 +838,57 @@ def process_pulse(
         if value_present and sentinels and value in sentinels:
             value_present = False
 
-        # Descriptor types pre-classified in build_write_spec; numeric ungated, string/dict gated on value.
-        string_desc = cw_row["_str_descs"]
+        # Numeric companions are constant values, seeded into the pulse IDS even when the row
+        # itself has no value for this pulse; string/dict companions are gated on the value.
         numeric_desc = cw_row["_num_descs"]
-        dict_desc = cw_row["_dict_descs"]
+        if not (value_present or numeric_desc):
+            continue
+
+        row_context = context._replace(label=cw_row["csv_column"])
+        value_leaf = cw_row["_value_leaf"]
+        depth = len(value_leaf.split("/")) if value_leaf else 0
 
         for imas_path in cw_row["_paths"]:
             ids_root = imas_path.split("/")[0]
-            value_leaf = cw_row["_value_leaf"]
-            full_path = imas_path + ("/" + value_leaf if value_leaf else "")
-            value_branch = full_path.split("/")[1:]
-            depth = len(value_leaf.split("/")) if value_leaf else 0
+            if ids_root not in pulse_ids:
+                pulse_ids[ids_root] = new_ids(factory, ids_root)
+            ids = pulse_ids[ids_root]
+            value_branch = (imas_path + ("/" + value_leaf if value_leaf else "")).split("/")[1:]
 
-            # Numeric companions are constant values, seeded into the pulse IDS even when
-            # the row itself has no value for this pulse.
             if numeric_desc:
-                if ids_root not in pulse_ids:
-                    pulse_ids[ids_root] = new_ids(factory, ids_root)
                 placeholder = replace_wildcard_index(value_branch, 0)
-                write_descriptors(
-                    pulse_ids[ids_root],
-                    [(placeholder, None)],
-                    numeric_desc,
-                    depth,
-                    slice_index,
-                    n_slices,
-                    const_ctx,
-                    var_label,
-                    resolve_spec,
-                )
+                write_descriptors(ids, [(placeholder, None)], numeric_desc, depth, row_context)
 
             if not value_present:
                 continue
 
             # Expand the row's transform into concrete (branch, value) writes.
             writes = resolve_writes(value_branch, value, cw_row, data_row)
-
-            # Write values to value path in the pulse IDS.
-            if ids_root not in pulse_ids:
-                pulse_ids[ids_root] = new_ids(factory, ids_root)
-            write_values(pulse_ids[ids_root], writes, slice_index, n_slices, const_ctx, var_label, resolve_spec)
+            write_values(ids, writes, row_context)
 
             # Write per-machine error bars to the "_error_upper" extension of each leaf path.
             # errors holds {machine: spec}; error_bar() resolves each spec against the leaf
             # value (relative, range, or absolute -- see parse_errors / docs/migration.md).
             errors = cw_row["_errors"]
-            if errors is not None and writes:
-                machine = data_row.get(machine_col) if machine_col else None
-                if machine in errors:  # miss -> skip silently
-                    spec = errors[machine]
-                    error_writes = [
-                        (branch[:-1] + [branch[-1] + "_error_upper"], error_bar(spec, v))
-                        for branch, v in writes
-                        if isinstance(v, (int, float, np.number, np.ndarray)) and not isinstance(v, bool)
-                    ]
-                    if error_writes:
-                        write_values(
-                            pulse_ids[ids_root],
-                            error_writes,
-                            slice_index,
-                            n_slices,
-                            const_ctx,
-                            var_label,
-                            resolve_spec,
-                        )
+            if errors is not None and writes and machine in errors:  # machine miss -> skip silently
+                error_writes = [
+                    (branch[:-1] + [branch[-1] + "_error_upper"], error_bar(errors[machine], v))
+                    for branch, v in writes
+                    if isinstance(v, (int, float, np.number, np.ndarray)) and not isinstance(v, bool)
+                ]
+                if error_writes:
+                    write_values(ids, error_writes, row_context)
 
-            # Write string and machine-specific (dict) companion descriptors to the pulse IDS.
-            if string_desc and writes:
-                write_descriptors(
-                    pulse_ids[ids_root],
-                    writes,
-                    string_desc,
-                    depth,
-                    slice_index,
-                    n_slices,
-                    const_ctx,
-                    var_label,
-                    resolve_spec,
-                )
-            if dict_desc and writes:
-                machine = data_row.get(machine_col) if machine_col else None
-                resolved = [
+            # String companions, plus machine-specific (dict) ones resolved for this pulse.
+            descriptors = cw_row["_str_descs"]
+            if cw_row["_dict_descs"]:
+                descriptors = descriptors + [
                     (leaf, d[machine] if machine in d else d["default"])
-                    for leaf, d in dict_desc
+                    for leaf, d in cw_row["_dict_descs"]
                     if machine in d or "default" in d
                 ]
-                if resolved:
-                    write_descriptors(
-                        pulse_ids[ids_root],
-                        writes,
-                        resolved,
-                        depth,
-                        slice_index,
-                        n_slices,
-                        const_ctx,
-                        var_label,
-                        resolve_spec,
-                    )
+            if descriptors and writes:
+                write_descriptors(ids, writes, descriptors, depth, row_context)
 
     return pulse_ids
 
@@ -1150,21 +1084,12 @@ def run_migration(
                 rows.sort(key=lambda row: (pd.isna(row[time_col]), row[time_col]))
             n = len(rows)
             times = [row[time_col] for row in rows] if time_col is not None else list(range(n))
-            ctx = f"{machine}/{pulse}"
+            pulse_key = f"{machine}/{pulse}"
 
             pulse_ids: dict[str, IDS] = {}
             for ti, row in enumerate(rows):
-                process_pulse(
-                    row,
-                    crosswalk,
-                    factory,
-                    machine_col,
-                    pulse_ids=pulse_ids,
-                    slice_index=ti,
-                    n_slices=n,
-                    const_ctx=ctx,
-                    resolve_spec=resolve_spec,
-                )
+                context = WriteContext(slice_index=ti, n_slices=n, pulse=pulse_key, resolve_spec=resolve_spec)
+                process_pulse(row, crosswalk, factory, machine_col, pulse_ids=pulse_ids, context=context)
             for ids in pulse_ids.values():
                 backfill_time(ids, times)
             if "temporary" in pulse_ids:
@@ -1181,7 +1106,7 @@ def run_migration(
                 if simdb_ingest(db, config, manifest, alias, pulse_dir.name, failed):
                     ingested += 1
 
-            last_report = report_progress(done, total, ctx, start, last_report)
+            last_report = report_progress(done, total, pulse_key, start, last_report)
     else:  # --per-time-slice: one IDS per CSV row
         total = len(data)
         for pulse_idx, data_row in data.iterrows():
