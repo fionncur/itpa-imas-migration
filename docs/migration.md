@@ -345,7 +345,7 @@ Run `python idstools/scripts/bin/idsmigration -h` for the full help. The argumen
 
 ### Default mode: per-pulse grouping
 
-By default the script groups CSV rows by `(machine, pulse)`, sorts each group in ascending time order, and writes **one IDS set per pulse**.  Dynamic IDS nodes (those whose `kind` is `dynamic`) accumulate one value per time-slice; static and constant nodes are written once and checked for consistency across slices (a warning is printed if a "constant" quantity differs between slices, and the first-seen value is kept).
+By default the script groups CSV rows by `(machine, pulse)`, sorts each group in ascending time order, and writes **one IDS set per pulse**.  Dynamic IDS nodes (those whose `kind` is `dynamic`) accumulate one value per time-slice; static and constant nodes are written once and checked for consistency across slices (a warning is printed if a "constant" quantity differs between slices; the value is resolved per [Resolving constant conflicts across slices](#resolving-constant-conflicts-across-slices) below, defaulting to keeping the first-seen value).
 
 The crosswalk must contain rows mapping to `summary/machine` and `summary/pulse` for grouping to work.  A `summary/time` mapping is optional but recommended — without it, slices are kept in CSV order and the `summary/time` vector is absent.
 
@@ -358,6 +358,32 @@ resources/results/tc26/
   jet_99001/
   ...
 ```
+
+### Resolving constant conflicts across slices
+
+A "constant"/`static` quantity that disagrees across a pulse's time-slices (e.g. a source data glitch, or two slices that should never differ physically) is, by default, resolved by keeping the first-seen value and printing a warning. For datasets where a handful of variables (typically 2-5) need a specific resolution instead, add a YAML sidecar next to the crosswalk, named `<mapping stem>.resolve.yaml` — e.g. `resources/mappings/2008_crosswalk.resolve.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no new CLI flag or crosswalk column is needed.
+
+The sidecar maps a `csv_column` name to a resolution strategy:
+
+```yaml
+LUPDATE:
+  strategy: max        # keep the lexicographically/chronologically greatest value
+EVAP:
+  strategy: avoid
+  avoid: ["NONE"]       # keep whichever candidate is not in this list
+```
+
+Available strategies:
+
+| Strategy     | Behaviour |
+| ------------ | --------- |
+| `keep_first` | Keep the first value seen (the default for any variable not listed in the sidecar) |
+| `keep_last`  | Keep the most recently seen value |
+| `max`        | Keep the greater of the two conflicting values (works for numbers and for fixed-width, zero-padded date strings such as ISO 8601, which sort lexicographically in chronological order) |
+| `min`        | Keep the lesser of the two conflicting values |
+| `avoid`      | Keep whichever value is not in the required `avoid` list; if both or neither are, keeps the first-seen value |
+
+Strategies are applied incrementally as each slice is written, so `max`/`min`/`avoid` converge to the correct result across any number of conflicting slices regardless of arrival order. An unknown `strategy` name, or an `avoid` strategy missing its `avoid` list, raises an error when the sidecar is loaded at startup.
 
 ### `--per-time-slice` mode (one IDS per row)
 
