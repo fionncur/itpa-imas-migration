@@ -354,7 +354,8 @@ def set_leaf(
         set_slice(parent, leaf, target, value, slice_index, n_slices)
     else:
         # Scalar / string leaf: constant or static. Write once; on disagreement across slices,
-        # resolve via `resolve_spec` if the variable is configured, else warn and keep first.
+        # resolve via `resolve_spec` if the variable is configured, else keep first. Every
+        # occurrence is tallied.
         if n_slices > 1 and target.has_value:
             # Identify the quantity by its crosswalk variable name
             name = label or "/".join(branch)
@@ -362,22 +363,18 @@ def set_leaf(
                 spec = (resolve_spec or {}).get(name)
                 if spec is not None:
                     resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
-                    if (const_ctx, name) not in _warned_const_mismatch:
-                        _warned_const_mismatch.add((const_ctx, name))
-                        _print_over_progress(
-                            f"WARNING: constant '{name}' differs across slices of pulse "
-                            f"{const_ctx}: {target.value!r} vs {value!r} -- resolved via "
-                            f"'{spec['strategy']}' -> {resolved!r}"
+                    if (const_ctx, name) not in _seen_const_mismatch:
+                        _seen_const_mismatch.add((const_ctx, name))
+                        _conflict_counts[(name, spec["strategy"])] = (
+                            _conflict_counts.get((name, spec["strategy"]), 0) + 1
                         )
                     if not _values_equal(resolved, target.value):
                         setattr(parent, leaf, resolved)
                     return
-                if (const_ctx, name) not in _warned_const_mismatch:
-                    _warned_const_mismatch.add((const_ctx, name))
-                    _print_over_progress(
-                        f"WARNING: constant '{name}' differs across slices of pulse "
-                        f"{const_ctx}: {target.value!r} vs {value!r} -- keeping first"
-                    )
+                if (const_ctx, name) not in _seen_const_mismatch:
+                    _seen_const_mismatch.add((const_ctx, name))
+                    key = (name, "default (keep_first)")
+                    _conflict_counts[key] = _conflict_counts.get(key, 0) + 1
             return  # keep the first value (or the value set by the resolved strategy above)
         setattr(parent, leaf, value)
 
@@ -448,7 +445,21 @@ def backfill_time(ids: IDS, times: Any = None) -> None:
 # ---------------------------------------------------------------------------
 
 
-_warned_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already warned about
+_seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already counted, at most once each
+_conflict_counts: dict[tuple[str, str], int] = {}  # (leaf path, strategy label) -> number of pulses resolved
+
+
+def report_conflict_summary() -> None:
+    """Print a one-line-per-(variable, strategy) tally of constant-conflict resolutions."""
+    if not _conflict_counts:
+        return
+    name_width = max(len(name) for name, _ in _conflict_counts)
+    strategy_width = max(len(strategy) for _, strategy in _conflict_counts)
+    lines = [
+        f"  {name:{name_width}}  {strategy:{strategy_width}}  {count} pulse(s)"
+        for (name, strategy), count in sorted(_conflict_counts.items())
+    ]
+    _print_over_progress("Constant conflicts resolved across slices:\n" + "\n".join(lines))
 
 
 def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: pd.Series) -> list[Write]:
@@ -1255,6 +1266,7 @@ def run_migration(
         report_summary("Ingested", ingested, done, start, " into SimDB")
         if failed:
             print("Failed to ingest:", failed)
+    report_conflict_summary()
 
 
 # ---------------------------------------------------------------------------

@@ -345,9 +345,9 @@ Run `python idstools/scripts/bin/idsmigration -h` for the full help. The argumen
 
 ### Default mode: per-pulse grouping
 
-By default the script groups CSV rows by `(machine, pulse)`, sorts each group in ascending time order, and writes **one IDS set per pulse**.  Dynamic IDS nodes (those whose `kind` is `dynamic`) accumulate one value per time-slice; static and constant nodes are written once and checked for consistency across slices (a warning is printed if a "constant" quantity differs between slices; the value is resolved per [Resolving constant conflicts across slices](#resolving-constant-conflicts-across-slices) below, defaulting to keeping the first-seen value).
+By default the script groups CSV rows by `(machine, pulse)`, sorts each group in ascending time order, and writes **one IDS set per pulse**.  Dynamic IDS nodes (those whose `kind` is `dynamic`) accumulate one value per time-slice; static and constant nodes are written once and checked for consistency across slices. Disagreements are resolved per [Resolving constant conflicts across slices](#resolving-constant-conflicts-across-slices) below (defaulting to keeping the first-seen value) and tallied into a summary printed at the end of the run.
 
-The crosswalk must contain rows mapping to `summary/machine` and `summary/pulse` for grouping to work.  A `summary/time` mapping is optional but recommended — without it, slices are kept in CSV order and the `summary/time` vector is absent.
+The crosswalk must contain rows mapping to `summary/machine` and `summary/pulse` for grouping to work.  A `summary/time` mapping is optional but recommended; without it, slices are kept in CSV order and the `summary/time` vector is absent.
 
 Output is one directory per `(machine, pulse)` pair, named `{machine}_{pulse}`:
 
