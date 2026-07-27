@@ -13,6 +13,8 @@ See docs/migration.md for the crosswalk format and full behaviour reference.
 from typing import Any
 import argparse
 import ast
+import builtins
+import collections
 import re
 import logging
 import sys
@@ -50,8 +52,6 @@ def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = _find_repo_root(HERE)
-mappings_dir = ROOT / "resources" / "mappings"
-input_dir = ROOT / "resources" / "input"
 
 # Type aliases for the structures passed between the helpers below.
 IDS = Any  # an IMAS top-level IDS object (summary, equilibrium, ...)
@@ -101,40 +101,30 @@ def replace_wildcard_index(branch: Branch, idx: int) -> Branch:
     return [f"{seg[:-3]}({idx})" if seg.endswith("(:)") else seg for seg in branch]
 
 
+def _literal_cell(cell: Any, what: str) -> Any:
+    """Parse a crosswalk cell holding a Python literal; blank / NaN -> None."""
+    if not isinstance(cell, str) or cell.strip() == "":
+        return None
+    try:
+        return ast.literal_eval(cell.strip())
+    except (ValueError, SyntaxError) as e:
+        raise ValueError(f"{what} {cell!r} is not a valid Python literal: {e}")
+
+
 def parse_source_pair(source_fields_val: Any, csv_column: str) -> tuple[str, str]:
     """Parse a source_fields cell into a (value_leaf, source_leaf) pair.
 
     Blank / NaN -> ("value", "source"), as a default.
     """
-    if not isinstance(source_fields_val, str) or source_fields_val.strip() == "":
+    parsed = _literal_cell(source_fields_val, f"source_fields for csv_column '{csv_column}'")
+    if parsed is None:
         return ("value", "source")
-    try:
-        parsed = ast.literal_eval(source_fields_val.strip())
-    except (ValueError, SyntaxError) as e:
-        raise ValueError(
-            f"source_fields {source_fields_val!r} for csv_column '{csv_column}' is not a valid Python literal: {e}"
-        )
     if not isinstance(parsed, tuple) or len(parsed) != 2 or not all(isinstance(p, str) for p in parsed):
         raise ValueError(
             f"source_fields for csv_column '{csv_column}' must be a 2-tuple of "
             f"strings, e.g. ('name', 'description'); got {parsed!r}"
         )
     return parsed
-
-
-def _validate_error_spec(machine: str, spec: Any) -> None:
-    """Validate one {machine: spec} value. Accepts a relative float, a 2-element numeric
-    range [min, max], or an absolute {"abs": value}; anything else raises ValueError."""
-    if is_number(spec):
-        return
-    if isinstance(spec, (list, tuple)) and len(spec) == 2 and all(is_number(p) for p in spec):
-        return
-    if isinstance(spec, dict) and set(spec) == {"abs"} and is_number(spec["abs"]):
-        return
-    raise ValueError(
-        f"errors spec for machine '{machine}' must be a relative float, a 2-element "
-        f"numeric range [min, max], or an absolute {{'abs': value}}; got {spec!r}"
-    )
 
 
 def parse_errors(errors_val: Any) -> dict | None:
@@ -144,16 +134,22 @@ def parse_errors(errors_val: Any) -> dict | None:
     (relative; the conservative max is used), or an absolute {"abs": value} written
     verbatim in IDS units. See docs/migration.md.
     """
-    if not isinstance(errors_val, str) or errors_val.strip() == "":
+    parsed = _literal_cell(errors_val, "errors")
+    if parsed is None:
         return None
-    try:
-        parsed = ast.literal_eval(errors_val.strip())
-    except (ValueError, SyntaxError) as e:
-        raise ValueError(f"errors {errors_val!r} is not a valid Python literal: {e}")
     if not isinstance(parsed, dict):
         raise ValueError(f"errors must be a dict literal, e.g. {{'JET': 0.05}}; got {parsed!r}")
     for machine, spec in parsed.items():
-        _validate_error_spec(machine, spec)
+        valid = (
+            is_number(spec)
+            or (isinstance(spec, (list, tuple)) and len(spec) == 2 and all(is_number(p) for p in spec))
+            or (isinstance(spec, dict) and set(spec) == {"abs"} and is_number(spec["abs"]))
+        )
+        if not valid:
+            raise ValueError(
+                f"errors spec for machine '{machine}' must be a relative float, a 2-element "
+                f"numeric range [min, max], or an absolute {{'abs': value}}; got {spec!r}"
+            )
     return parsed
 
 
@@ -164,12 +160,9 @@ def parse_sentinels(sentinels_val: Any) -> list | None:
     the IMAS empty. Numbers keep the int/float type ast.literal_eval gives them; strings are stripped
     to match load_dataset's stripping.
     """
-    if not isinstance(sentinels_val, str) or sentinels_val.strip() == "":
+    parsed = _literal_cell(sentinels_val, "sentinels")
+    if parsed is None:
         return None
-    try:
-        parsed = ast.literal_eval(sentinels_val.strip())
-    except (ValueError, SyntaxError) as e:
-        raise ValueError(f"sentinels {sentinels_val!r} is not a valid Python literal: {e}")
     if not isinstance(parsed, (list, tuple)):
         raise ValueError(f"sentinels must be a list literal, e.g. [-9.999e-09, 'N/A']; got {parsed!r}")
     out = []
@@ -232,17 +225,7 @@ def resolve_parent(ids: IDS, branch: Branch) -> tuple[IDS, str]:
             if len(node) <= idx:
                 node.resize(idx + 1, keep=True)
             node = node[idx]
-    return node, branch[-1]
-
-
-def _np_dtype(data_type: Any) -> Any:
-    """numpy dtype for an IDS numeric leaf (int leaves -> int32, everything else -> float)."""
-    return np.int32 if data_type.name == "INT" else np.float64
-
-
-def _empty_fill(data_type: Any) -> Any:
-    """IMAS empty placeholder for an IDS numeric leaf, used to pad missing time-slices."""
-    return imas.ids_defs.EMPTY_INT if data_type.name == "INT" else imas.ids_defs.EMPTY_FLOAT
+    return node, parse_seg(branch[-1])[0]
 
 
 def _values_equal(a: Any, b: Any) -> bool:
@@ -279,6 +262,23 @@ def _resolve_conflict(strategy: str, old: Any, new: Any, avoid: list | None = No
     raise ValueError(f"unknown resolve strategy {strategy!r}")
 
 
+_seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already counted, at most once each
+_conflict_counts: collections.Counter = collections.Counter()  # (leaf path, strategy label) -> pulses resolved
+
+
+def report_conflict_summary() -> None:
+    """Print a one-line-per-(variable, strategy) tally of constant-conflict resolutions."""
+    if not _conflict_counts:
+        return
+    name_width = max(len(name) for name, _ in _conflict_counts)
+    strategy_width = max(len(strategy) for _, strategy in _conflict_counts)
+    lines = [
+        f"  {name:{name_width}}  {strategy:{strategy_width}}  {count} pulse(s)"
+        for (name, strategy), count in sorted(_conflict_counts.items())
+    ]
+    _print_over_progress("Constant conflicts resolved across slices:\n" + "\n".join(lines))
+
+
 def set_slice(parent: IDS, leaf: str, target: Any, value: Any, slice_index: int, n_slices: int) -> None:
     """Place `value` at `slice_index`, growing the leaf to `n_slices` with appropriate padding.
 
@@ -289,14 +289,12 @@ def set_slice(parent: IDS, leaf: str, target: Any, value: Any, slice_index: int,
         if len(cur) < n_slices:
             cur += [""] * (n_slices - len(cur))
     else:
-        data_type = target.metadata.data_type
-        cur = (
-            np.atleast_1d(np.array(target.value, copy=True))
-            if target.has_value
-            else np.empty(0, dtype=_np_dtype(data_type))
-        )
+        is_int = target.metadata.data_type.name == "INT"
+        dtype = np.int32 if is_int else np.float64
+        cur = np.atleast_1d(np.array(target.value, copy=True)) if target.has_value else np.empty(0, dtype=dtype)
         if cur.size < n_slices:
-            grown = np.full(n_slices, _empty_fill(data_type), dtype=_np_dtype(data_type))
+            empty = imas.ids_defs.EMPTY_INT if is_int else imas.ids_defs.EMPTY_FLOAT
+            grown = np.full(n_slices, empty, dtype=dtype)
             if cur.size:
                 grown[: cur.size] = cur
             cur = grown
@@ -321,8 +319,7 @@ def set_leaf(
     (variable name -> {strategy, ...}, see `load_resolve_spec`) is consulted to reduce the
     conflicting values; unconfigured variables keep a default of warning and keeping first.
     """
-    parent, leaf_seg = resolve_parent(ids, branch)
-    leaf, _ = parse_seg(leaf_seg)
+    parent, leaf = resolve_parent(ids, branch)
     target = getattr(parent, leaf)
 
     # Type gate: a value that does not match its leaf's dtype is treated as missing, so the leaf keeps
@@ -361,20 +358,13 @@ def set_leaf(
             name = label or "/".join(branch)
             if not _values_equal(target.value, value):
                 spec = (resolve_spec or {}).get(name)
-                if spec is not None:
-                    resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
-                    if (const_ctx, name) not in _seen_const_mismatch:
-                        _seen_const_mismatch.add((const_ctx, name))
-                        _conflict_counts[(name, spec["strategy"])] = (
-                            _conflict_counts.get((name, spec["strategy"]), 0) + 1
-                        )
-                    if not _values_equal(resolved, target.value):
-                        setattr(parent, leaf, resolved)
-                    return
                 if (const_ctx, name) not in _seen_const_mismatch:
                     _seen_const_mismatch.add((const_ctx, name))
-                    key = (name, "default (keep_first)")
-                    _conflict_counts[key] = _conflict_counts.get(key, 0) + 1
+                    _conflict_counts[(name, spec["strategy"] if spec else "default (keep_first)")] += 1
+                if spec is not None:
+                    resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
+                    if not _values_equal(resolved, target.value):
+                        setattr(parent, leaf, resolved)
             return  # keep the first value (or the value set by the resolved strategy above)
         setattr(parent, leaf, value)
 
@@ -391,21 +381,6 @@ def write_values(
     """Write resolved (branch, value) pairs to their leaves in the pulse `ids`."""
     for branch, value in writes:
         set_leaf(ids, branch, value, slice_index, n_slices, const_ctx, label, resolve_spec)
-
-
-def write_companions(
-    ids: IDS,
-    anchor: Branch,
-    descriptors: list[Descriptor],
-    slice_index: int = 0,
-    n_slices: int = 1,
-    const_ctx: str | None = None,
-    label: str | None = None,
-    resolve_spec: dict[str, dict] | None = None,
-) -> None:
-    """Write each companion (leaf_segments, value) at `anchor`, the shared parent node."""
-    for desc_leaf, desc_val in descriptors:
-        set_leaf(ids, anchor + list(desc_leaf), desc_val, slice_index, n_slices, const_ctx, label, resolve_spec)
 
 
 def write_descriptors(
@@ -427,7 +402,8 @@ def write_descriptors(
     """
     for branch, _ in writes:
         anchor = branch[: len(branch) - value_leaf_depth]
-        write_companions(ids, anchor, descriptors, slice_index, n_slices, const_ctx, label, resolve_spec)
+        for desc_leaf, desc_val in descriptors:
+            set_leaf(ids, anchor + list(desc_leaf), desc_val, slice_index, n_slices, const_ctx, label, resolve_spec)
 
 
 def backfill_time(ids: IDS, times: Any = None) -> None:
@@ -443,23 +419,6 @@ def backfill_time(ids: IDS, times: Any = None) -> None:
 # ---------------------------------------------------------------------------
 # Transform resolution
 # ---------------------------------------------------------------------------
-
-
-_seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse ctx, leaf path) already counted, at most once each
-_conflict_counts: dict[tuple[str, str], int] = {}  # (leaf path, strategy label) -> number of pulses resolved
-
-
-def report_conflict_summary() -> None:
-    """Print a one-line-per-(variable, strategy) tally of constant-conflict resolutions."""
-    if not _conflict_counts:
-        return
-    name_width = max(len(name) for name, _ in _conflict_counts)
-    strategy_width = max(len(strategy) for _, strategy in _conflict_counts)
-    lines = [
-        f"  {name:{name_width}}  {strategy:{strategy_width}}  {count} pulse(s)"
-        for (name, strategy), count in sorted(_conflict_counts.items())
-    ]
-    _print_over_progress("Constant conflicts resolved across slices:\n" + "\n".join(lines))
 
 
 def resolve_writes(ids_branch: Branch, value: Any, cw_row: pd.Series, data_row: pd.Series) -> list[Write]:
@@ -601,14 +560,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_io_paths(args: argparse.Namespace) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
-    """Resolve (data_path, mapping_path, output_dir) from the parsed CLI args."""
-    data_path = input_dir / args.dataset
-    mapping_path = mappings_dir / args.mapping
-    output_dir = ROOT / "resources" / "results" / args.experiment
-    return data_path, mapping_path, output_dir
-
-
 def load_resolve_spec(mapping_path: pathlib.Path) -> dict[str, dict]:
     """Load the optional per-dataset conflict-resolution sidecar next to a crosswalk.
 
@@ -634,7 +585,7 @@ def load_resolve_spec(mapping_path: pathlib.Path) -> dict[str, dict]:
     return spec
 
 
-def load_crosswalk(mapping_path: str) -> pd.DataFrame:
+def load_crosswalk(mapping_path: pathlib.Path) -> pd.DataFrame:
     """Read the crosswalk xlsx, keep implemented+accepted rows, and parse source pairs."""
     df = pd.read_excel(mapping_path)
 
@@ -677,7 +628,7 @@ def load_crosswalk(mapping_path: str) -> pd.DataFrame:
     return df
 
 
-def load_dataset(data_path: str) -> pd.DataFrame:
+def load_dataset(data_path: pathlib.Path) -> pd.DataFrame:
     """Import experimental data from csv, stripping whitespace from string cells."""
     data = pd.read_csv(data_path)
     return data.map(lambda x: x.strip() if isinstance(x, str) else x)
@@ -719,8 +670,7 @@ def _check_dictionary_coverage(df: pd.DataFrame, data: pd.DataFrame) -> None:
             raise ValueError(f"Row {row.name}: transform='dictionary' but transform_args is missing")
         dictionary = ast.literal_eval(row["transform_args"])
         observed = data[row["csv_column"]].dropna()
-        sentinels = parse_sentinels(row.get("sentinels", None))
-        sentinels = sentinels if sentinels is not None else []
+        sentinels = row["_sentinels"] or []
         uncovered = observed[
             ~observed.isin(dictionary.keys()) & ~observed.eq("") & ~observed.isin(sentinels)
         ].value_counts()  # Manually filter empty string
@@ -734,8 +684,6 @@ def _check_dictionary_coverage(df: pd.DataFrame, data: pd.DataFrame) -> None:
 
 def _check_formula_identifiers(df: pd.DataFrame, data: pd.DataFrame) -> None:
     """Every bare name in a formula must be a CSV column or a Python builtin."""
-    import builtins
-
     allowed = set(data.columns) | set(dir(builtins)) | {"datetime"}
     for _, row in df[df["transform"] == "formula"].iterrows():
         if not isinstance(row["transform_args"], str):
@@ -769,8 +717,8 @@ def _check_machine_keys(df: pd.DataFrame, data: pd.DataFrame) -> None:
                     )
 
 
-def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> pd.DataFrame:
-    """Upfront validation; warns and fixes up the `source` column in place where needed."""
+def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> None:
+    """Upfront validation of the crosswalk against the data CSV and the Data Dictionary."""
     # Upfront validation: all csv_columns must exist in data.
     missing_cols = set(df["csv_column"]) - set(data.columns)
     if missing_cols:
@@ -786,8 +734,6 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> 
     bad_dtype = is_temp & ~df["csv_dtype"].apply(lambda x: isinstance(x, str) and x.strip() != "")
     if bad_dtype.any():
         print(f"WARNING: status 'manifest' but csv_dtype is missing for rows: {list(df.index[bad_dtype])} -- skipping")
-
-    return df
 
 
 def temp_var_name(cw_row: pd.Series) -> tuple[str, str]:
@@ -1277,12 +1223,13 @@ def run_migration(
 def main() -> None:
     """Run the CSV -> IDS migration pipeline."""
     args = parse_args()
-    data_path, mapping_path, output_dir = resolve_io_paths(args)
+    mapping_path = ROOT / "resources" / "mappings" / args.mapping
+    output_dir = ROOT / "resources" / "results" / args.experiment
     resolve_spec = load_resolve_spec(mapping_path)
     crosswalk = load_crosswalk(mapping_path)
-    data = load_dataset(data_path)
+    data = load_dataset(ROOT / "resources" / "input" / args.dataset)
     factory = imas.IDSFactory(version=args.dd_version)
-    crosswalk = validate(crosswalk, data, factory)  # validate *does* modify the df in case of "bad_source"
+    validate(crosswalk, data, factory)
     crosswalk = build_write_spec(crosswalk)
 
     simdb_enabled = args.simdb
