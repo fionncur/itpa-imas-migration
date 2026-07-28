@@ -59,8 +59,6 @@ CROSSWALK_COLUMNS = [
     "needs_source",
     "source_fields",
     "source",
-    "errors",
-    "sentinels",
 ]
 
 DD_COLUMNS = ["identifier", "description", "units", "data_type", "kind"]
@@ -111,11 +109,11 @@ def _extract_dd_rows(root) -> list[dict]:
     return rows
 
 
-# Column T (hidden) holds the normalised imas_path used by C/E/I/J.
-# It strips the first &-delimited path and removes index suffixes in parentheses,
-# like (0), (:) etc.
-NORM_COL = "T"
-NORM_COL_IDX = 20  # 1-based
+# Hidden helper column, one past the last crosswalk column, holding the normalised imas_path used
+# by the formula columns. It strips the first &-delimited path and removes index suffixes in
+# parentheses, like (0), (:) etc.
+NORM_COL_IDX = len(CROSSWALK_COLUMNS) + 1  # 1-based
+NORM_COL = get_column_letter(NORM_COL_IDX)
 
 
 def _formula_norm(row: int) -> str:
@@ -248,8 +246,6 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
         "needs_source": 14,
         "source_fields": 22,
         "source": 22,
-        "errors": 30,
-        "sentinels": 30,
     }
     for col_name, width in widths.items():
         ws.column_dimensions[col_map[col_name]].width = width

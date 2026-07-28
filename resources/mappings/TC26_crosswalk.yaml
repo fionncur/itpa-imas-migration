@@ -1,0 +1,5 @@
+sentinels:
+  FRACNMIN: [-1.0e-08]
+  # ZEFF: []  # unconfirmed -- NA markers: '-' x199 | suspected 0 (x277): global min; machine-exclusive: AUG x252, CMOD x25
+  # PFLOSS: []  # unconfirmed -- suspected 0 (x317): global min
+  # PRADCORE: []  # unconfirmed -- NA markers: '-' x15 | suspected 0 (x29): global min; machine-exclusive: AUG x29

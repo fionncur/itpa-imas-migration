@@ -1,0 +1,734 @@
+sentinels:
+  HYBRID: ["UNKNOWN"]
+  ITB: ["UNKNOWN"]
+  # form markers (auto-handled): '???????' x100
+  ELMTYPE: ["UNKNOWN"]
+  DIVMAT: ["NONE"]
+  LIMMAT: ["NONE"]
+  ECHMODE: ["UNKNOWN"]
+  ECHLOC: ["UNKNOWN"]
+  ICSCHEME: ["UNKNOWN"]
+  ICANTEN: ["UNKNOWN"]
+  # suspected 0 (x628): global min; machine-exclusive: JET x628
+  NESEP: [0]
+  # suspected 0 (x628): global min; machine-exclusive: JET x628
+  NESOL: [0, "0"]
+  # ELMMAX: []  # unconfirmed -- suspected 0 (x7489): global min
+  # ELMDUR: []  # unconfirmed -- suspected 0 (x7489): global min
+  # ELMINT: []  # unconfirmed -- suspected 0 (x7489): global min
+  # OLTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825 | suspected 52 (x241): extremity (52 vs median 1.096 +/- 10*IQR); machine-exclusive: JET x241 | suspected 51 (x120): extremity (51 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 53 (x120): extremity (53 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 54 (x96): extremity (54 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x96 | suspected 48 (x90): extremity (48 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x90 | suspected 50 (x79): extremity (50 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x79
+  # LHTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825
+  # FUELRATE: []  # unconfirmed -- suspected 0 (x1537): global min
+  # DELTA: []  # unconfirmed -- suspected 0 (x3213): global min; machine-exclusive: ASDEX x1470, TEXTOR x1435, PDX x143, TFTR x104, TUMAN3M x49, T10 x12
+  # DELTAL: []  # unconfirmed -- suspected 0 (x3213): global min; machine-exclusive: ASDEX x1470, TEXTOR x1435, PDX x143, TFTR x104, TUMAN3M x49, T10 x12
+  # DALFMP: []  # unconfirmed -- suspected 0.08057 (x24): magnitude 14.83 decades off median; machine-exclusive: PBXM x24 | suspected 0.08301 (x22): magnitude 14.81 decades off median; machine-exclusive: PBXM x22 | suspected 0.08545 (x20): magnitude 14.8 decades off median; machine-exclusive: PBXM x20 | suspected 0.07813 (x18): magnitude 14.84 decades off median; machine-exclusive: PBXM x18 | suspected 0.09033 (x17): magnitude 14.77 decades off median; machine-exclusive: PBXM x17 | suspected 0.07568 (x16): magnitude 14.85 decades off median; machine-exclusive: PBXM x16 | suspected 0.0415 (x15): magnitude 15.11 decades off median; machine-exclusive: PBXM x15 | suspected 0.03662 (x15): magnitude 15.17 decades off median; machine-exclusive: PBXM x15
+  # DALFDV: []  # unconfirmed -- suspected -0.002441 (x63): magnitude 18.44 decades off median; machine-exclusive: PBXM x63 | suspected 0.0025 (x49): magnitude 18.42 decades off median; machine-exclusive: NSTX x49 | suspected -0.004883 (x37): magnitude 18.13 decades off median; machine-exclusive: PBXM x37 | suspected 0.004883 (x27): magnitude 18.12 decades off median; machine-exclusive: PBXM x27 | suspected 0.007324 (x26): magnitude 17.95 decades off median; machine-exclusive: PBXM x26 | suspected -0.007324 (x26): magnitude 17.95 decades off median; machine-exclusive: PBXM x26 | suspected 0.009766 (x24): magnitude 17.82 decades off median; machine-exclusive: PBXM x24 | suspected 0.01221 (x16): magnitude 17.72 decades off median; machine-exclusive: PBXM x16 | suspected 0.002441 (x15): magnitude 18.42 decades off median; machine-exclusive: PBXM x15
+  # BEILI2: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825
+  # PRAD: []  # unconfirmed -- suspected 0 (x690): global min; machine-exclusive: ASDEX x689, JET x1
+  # ENBI: []  # unconfirmed -- suspected 0 (x2847): global min; machine-exclusive: JET x1600, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
+  # PINJ: []  # unconfirmed -- suspected 0 (x3134): global min; machine-exclusive: JET x1699, ASDEX x630, JFT2M x265, AUG x139, TEXTOR x123, CMOD x87, TUMAN3M x49, D3D x44, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x4, TFTR x4
+  # PINJ2: []  # unconfirmed -- suspected 0 (x9619): global min
+  # PNBI: []  # unconfirmed -- suspected 0 (x2838): global min; machine-exclusive: JET x1591, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
+  # PFLOSS: []  # unconfirmed -- suspected 0 (x3103): global min; machine-exclusive: JET x1600, ASDEX x630, TEXTOR x290, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x4, JT60U x1
+  # PICRHC: []  # unconfirmed -- suspected 0 (x10894): global min; machine-exclusive: JET x4689, AUG x1844, ASDEX x1470, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TEXTOR x110, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
+  # PICRH: []  # unconfirmed -- suspected 0 (x10894): global min; machine-exclusive: JET x4689, AUG x1844, ASDEX x1470, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TEXTOR x110, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
+  # WFFORM: []  # unconfirmed -- suspected 0 (x2852): global min; machine-exclusive: JET x1607, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, COMPASS x43, AUG x41, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
+  # WFANI: []  # unconfirmed -- suspected 0 (x2859): global min; machine-exclusive: JET x1588, ASDEX x630, JFT2M x265, CMOD x87, AUG x67, TUMAN3M x49, D3D x44, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
+  # WFICRH: []  # unconfirmed -- suspected 0 (x12405): global min; machine-exclusive: JET x4875, AUG x1844, ASDEX x1470, TEXTOR x1435, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
+  # WFICFORM: []  # unconfirmed -- suspected 0 (x10928): global min
+  # SPIN: []  # unconfirmed -- suspected 0.9429 (x1147): extremity (0.9429 vs median 0.523 +/- 10*IQR); machine-exclusive: TEXTOR x1147 | suspected -0.9429 (x79): global min; machine-exclusive: TEXTOR x79
+
+errors:
+  ELMFREQ:
+    TCV: 0.01
+  MEFF:
+    ASDEX: 0.1
+    AUG: 0.2
+    CMOD: 0.03
+    COMPASS: 0.1
+    JET: 0.2
+    JT60U: 0.05
+    PBXM: 0.25
+    PDX: 0.25
+    TCV: 0.0
+    TFTR: 0.002
+    TDEV: 0.1
+    START: 0.5
+    T10: 0.1
+    TUMAN3M: 0.05
+  RGEO:
+    ASDEX: 0.01
+    AUG: 0.005
+    CMOD: 0.006
+    D3D: 0.006
+    JET: 0.01
+    JFT2M: 0.0075
+    JT60U: 0.005
+    PBXM: 0.0065
+    PDX: 0.0075
+    TCV: 0.01
+    TEXTOR: 0.005
+    T10: 0.01
+    TUMAN3M: 0.02
+    COMPASS: {abs: 0.01}
+    TFTR: {abs: 0.01}
+    TDEV: {abs: 0.005}
+    START: {abs: 0.02}
+  RMAG:
+    ASDEX: 0.01
+    AUG: 0.01
+    CMOD: 0.01
+    D3D: 0.01
+    JET: 0.02
+    JFT2M: 0.02
+    JT60U: 0.005
+    PBXM: 0.01
+    PDX: 0.04
+    TCV: 0.01
+    TEXTOR: 0.02
+    TDEV: 0.02
+    T10: 0.01
+    TFTR: {abs: 0.04}
+  AMIN:
+    ASDEX: 0.015
+    AUG: 0.01
+    CMOD: 0.02
+    D3D: 0.005
+    JET: 0.03
+    JFT2M: 0.03
+    JT60U: 0.01
+    PBXM: 0.03
+    PDX: 0.03
+    TCV: 0.02
+    TEXTOR: 0.03
+    TDEV: 0.05
+    T10: 0.03
+    TUMAN3M: 0.03
+    COMPASS: {abs: 0.01}
+    TFTR: {abs: 0.01}
+    START: {abs: 0.02}
+  KAPPA:
+    ASDEX: 0.02
+    AUG: 0.01
+    CMOD: 0.01
+    COMPASS: 0.1
+    D3D: 0.01
+    JET: 0.05
+    JFT2M: 0.1
+    JT60U: 0.02
+    PBXM: 0.1
+    PDX: 0.1
+    TCV: 0.02
+    TEXTOR: 0.04
+    TDEV: 0.02
+    START: 0.1
+    T10: 0.05
+    TUMAN3M: 0.05
+  DELTAU:
+    AUG: 0.1
+    CMOD: 0.02
+    COMPASS: 0.1
+    D3D: 0.1
+    JET: 0.1
+    TCV: 0.03
+    TDEV: 0.1
+    START: 0.1
+  DELTAL:
+    AUG: 0.1
+    CMOD: 0.01
+    COMPASS: 0.1
+    D3D: 0.1
+    JET: 0.1
+    TCV: 0.03
+    TDEV: 0.1
+    START: 0.1
+  VOL:
+    ASDEX: 0.03
+    AUG: 0.03
+    CMOD: 0.03
+    COMPASS: 0.1
+    D3D: 0.03
+    JET: 0.06
+    JFT2M: 0.05
+    JT60U: 0.02
+    PBXM: 0.1
+    PDX: 0.05
+    TCV: 0.01
+    TEXTOR: 0.05
+    TFTR: 0.06
+    TDEV: 0.01
+    START: 0.1
+    T10: 0.07
+    TUMAN3M: 0.08
+  SEPLIM:
+    TCV: 0.02
+    ASDEX: {abs: 0.01}
+    CMOD: {abs: 0.005}
+    D3D: {abs: 0.005}
+    JET: {abs: 0.01}
+    JFT2M: {abs: 0.01}
+    JT60U: {abs: 0.01}
+    PBXM: {abs: 0.005}
+    PDX: {abs: 0.01}
+    TEXTOR: {abs: 0.005}
+    TDEV: {abs: 0.005}
+  BT:
+    ASDEX: 0.01
+    AUG: 0.01
+    CMOD: 0.01
+    COMPASS: 0.02
+    D3D: 0.01
+    JET: 0.01
+    JFT2M: 0.01
+    JT60U: 0.01
+    PBXM: 0.01
+    PDX: 0.01
+    TCV: 0.01
+    TEXTOR: 0.01
+    TFTR: 0.02
+    TDEV: 0.01
+    START: 0.06
+    T10: 0.01
+    TUMAN3M: 0.03
+  IP:
+    ASDEX: 0.01
+    AUG: 0.01
+    CMOD: 0.02
+    COMPASS: 0.01
+    D3D: 0.01
+    JET: 0.01
+    JFT2M: 0.01
+    JT60U: 0.005
+    PBXM: 0.01
+    PDX: 0.01
+    TCV: 0.01
+    TEXTOR: 0.01
+    TFTR: 0.02
+    TDEV: 0.02
+    START: 0.02
+    T10: 0.01
+    TUMAN3M: 0.03
+  VSURF:
+    ASDEX: 0.05
+    AUG: 0.1
+    CMOD: 0.05
+    COMPASS: 0.1
+    JET: 0.05
+    JFT2M: 0.05
+    JT60U: 0.2
+    PBXM: 0.5
+    PDX: 0.1
+    TCV: 0.03
+    TEXTOR: 0.05
+    START: 0.1
+    T10: 0.2
+    TUMAN3M: 0.05
+    TDEV: {abs: 0.02}
+  Q95:
+    ASDEX: 0.1
+    AUG: 0.05
+    CMOD: 0.03
+    COMPASS: 0.1
+    D3D: 0.03
+    JET: 0.1
+    JFT2M: 0.1
+    JT60U: 0.05
+    PBXM: 0.1
+    PDX: 0.1
+    TCV: 0.03
+    TEXTOR: 0.1
+    TFTR: 0.06
+    TDEV: 0.1
+    START: 0.1
+    T10: 0.1
+  BEPMHD:
+    ASDEX: 0.15
+    AUG: 0.1
+    JFT2M: 0.15
+    JT60U: 0.07
+    PBXM: 0.2
+    PDX: 0.2
+    TCV: 0.1
+    TEXTOR: 0.15
+    T10: 0.1
+  BETMHD:
+    ASDEX: 0.18
+    AUG: 0.15
+    JET: 0.12
+    JFT2M: 0.15
+    JT60U: 0.07
+    PBXM: 0.2
+    PDX: 0.2
+    TCV: 0.1
+    TEXTOR: 0.15
+    START: 0.15
+    T10: 0.1
+  NEL:
+    ASDEX: 0.03
+    AUG: 0.03
+    CMOD: 0.05
+    COMPASS: 0.05
+    JET: 0.08
+    JFT2M: 0.02
+    JT60U: 0.1
+    PBXM: 0.05
+    PDX: 0.05
+    TCV: 0.05
+    TEXTOR: 0.02
+    TFTR: 0.05
+    TDEV: 0.02
+    START: 0.05
+    T10: 0.03
+    TUMAN3M: 0.1
+    D3D: {abs: 2.0e+18}
+  DNELDT:
+    ASDEX: 0.02
+    AUG: 0.03
+    CMOD: 0.05
+    JET: 0.08
+    JFT2M: 0.02
+    JT60U: 0.1
+    PBXM: 0.05
+    PDX: 0.05
+    TCV: 0.05
+    TEXTOR: 0.05
+    TFTR: 0.05
+    TDEV: 0.1
+    D3D: {abs: 2.0e+18}
+  NEV:
+    ASDEX: 0.05
+    AUG: 0.1
+    CMOD: 0.07
+    D3D: 0.1
+    JET: 0.08
+    JFT2M: 0.02
+    JT60U: 0.1
+    PBXM: 0.05
+    PDX: 0.05
+    TCV: 0.05
+    TEXTOR: 0.1
+    TFTR: 0.1
+    TDEV: 0.1
+    T10: 0.1
+  NE0:
+    ASDEX: 0.1
+    AUG: 0.2
+    CMOD: 0.1
+    D3D: 0.15
+    JET: 0.1
+    JT60U: 0.2
+    TCV: 0.1
+    TEXTOR: 0.1
+    TFTR: 0.1
+    TDEV: 0.1
+    T10: 0.1
+  ZEFF:
+    ASDEX: 0.1
+    CMOD: 0.2
+    D3D: 0.2
+    JET: 0.3
+    JT60U: 0.15
+    TCV: 0.2
+    TDEV: 0.25
+    T10: 0.3
+  PRAD:
+    ASDEX: 0.2
+    AUG: 0.2
+    CMOD: 0.2
+    D3D: 0.15
+    JFT2M: [0.1, 0.2]
+    JT60U: 0.2
+    PBXM: 0.25
+    TEXTOR: 0.15
+    TDEV: 0.2
+    T10: 0.25
+    JET: [0.1, 0.15]
+  POHM:
+    AUG: 0.15
+    CMOD: 0.15
+    COMPASS: 0.1
+    D3D: 0.15
+    JET: 0.2
+    JFT2M: 0.1
+    JT60U: 0.2
+    PBXM: 0.5
+    PDX: 0.2
+    TCV: 0.1
+    TEXTOR: 0.1
+    TDEV: 0.05
+    START: 0.1
+    T10: 0.2
+    TUMAN3M: 0.06
+    TFTR: {abs: 300000}
+  PINJ:
+    ASDEX: 0.05
+    AUG: 0.05
+    D3D: 0.1
+    JET: 0.06
+    JFT2M: 0.05
+    JT60U: 0.05
+    PBXM: 0.05
+    PDX: 0.1
+    TEXTOR: 0.05
+    START: 0.05
+  PINJ2:
+    AUG: 0.05
+    JET: 0.06
+    TEXTOR: 0.05
+  PNBI:
+    ASDEX: 0.1
+    AUG: 0.1
+    D3D: 0.1
+    JET: 0.1
+    JFT2M: 0.1
+    JT60U: 0.1
+    PBXM: 0.1
+    PDX: 0.1
+    TEXTOR: 0.1
+    START: 0.2
+  ECHFREQ:
+    COMPASS: 0.001
+    D3D: 0.001
+    TDEV: 0.001
+    T10: 0.001
+  ICFREQ:
+    AUG: 0.01
+    CMOD: 0.005
+    D3D: 1.0e-05
+    JET: 0.01
+    TEXTOR: 0.001
+  DWDIA:
+    ASDEX: 0.2
+    AUG: 0.3
+    COMPASS: 0.3
+    D3D: 0.25
+    JET: 0.1
+    JFT2M: 0.2
+    JT60U: 0.2
+    PDX: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.5
+    T10: 0.15
+    TUMAN3M: 0.2
+  TEV:
+    ASDEX: 0.05
+    CMOD: 0.05
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.05
+    PBXM: 0.3
+    PDX: 0.3
+    TCV: 0.05
+    TFTR: 0.15
+    T10: 0.15
+  TE0:
+    ASDEX: 0.1
+    AUG: 0.3
+    CMOD: 0.1
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.1
+    TCV: 0.1
+    TEXTOR: 0.15
+    TFTR: 0.1
+    TDEV: 0.1
+    T10: 0.15
+  TIV:
+    D3D: 0.1
+    JET: 0.3
+    JT60U: 0.07
+    PBXM: 0.3
+    PDX: 0.3
+    TFTR: 0.2
+  WDIA:
+    ASDEX: 0.1
+    AUG: 0.1
+    COMPASS: 0.15
+    JET: 0.05
+    JFT2M: 0.15
+    JT60U: 0.05
+    PDX: 0.15
+    TEXTOR: 0.1
+    TDEV: 0.1
+    T10: 0.1
+    TUMAN3M: 0.2
+  WMHD:
+    AUG: 0.1
+    JET: 0.15
+    JFT2M: 0.15
+    JT60U: 0.05
+    PBXM: 0.15
+    PDX: 0.15
+    TCV: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.1
+    START: 0.15
+    T10: 0.1
+  WKIN:
+    ASDEX: 2.5
+    CMOD: 0.2
+    JET: 0.25
+    JT60U: 0.15
+    PDX: 0.15
+    TEXTOR: 0.15
+    TFTR: 0.25
+  WEKIN:
+    CMOD: 0.15
+    D3D: 0.15
+    JET: 0.2
+    JT60U: 0.15
+    TCV: 0.1
+    TFTR: 0.2
+    T10: 0.2
+  WIKIN:
+    CMOD: 0.25
+    D3D: 0.15
+    JET: 0.15
+    JT60U: 0.15
+    TFTR: 0.25
+  WFPAR:
+    AUG: 0.3
+    JET: 0.3
+    JFT2M: 0.2
+    PBXM: 0.3
+    PDX: 0.3
+    TEXTOR: 0.25
+    TFTR: 0.3
+  SH95:
+    D3D: 0.5
+    JET: 0.5
+  BEPDIA:
+    ASDEX: 0.15
+    AUG: 0.1
+    JET: 0.2
+    TDEV: 0.25
+    T10: 0.1
+  PECRHC:
+    COMPASS: 0.05
+    D3D: 0.1
+    TDEV: 0.1
+    T10: 0.1
+  PICRHC:
+    AUG: 0.1
+    D3D: 0.05
+    JET: 0.1
+    TEXTOR: 0.1
+    CMOD: [0.03, 0.05]
+  TI0:
+    AUG: 0.4
+    CMOD: 0.15
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.1
+    TFTR: 0.15
+    T10: 0.1
+  WFPER:
+    AUG: 0.3
+    JET: 0.3
+    JFT2M: 0.2
+    PBXM: 0.3
+    PDX: 0.3
+    TEXTOR: 0.25
+    TFTR: 0.3
+  DELTA:
+    ASDEX: 0.03
+    AUG: 0.1
+    CMOD: 0.03
+    COMPASS: 0.1
+    D3D: 0.1
+    JET: 0.1
+    JFT2M: 0.1
+    JT60U: 0.05
+    PBXM: 0.25
+    TCV: 0.03
+    TDEV: 0.1
+    START: 0.1
+  AREA:
+    ASDEX: 0.02
+    AUG: 0.03
+    CMOD: 0.03
+    D3D: 0.03
+    JET: 0.06
+    JFT2M: 0.05
+    JT60U: 0.05
+    PBXM: 0.1
+    PDX: 0.05
+    TCV: 0.01
+    TEXTOR: 0.05
+    TFTR: 0.05
+    TDEV: 0.05
+    START: 0.1
+    T10: 0.06
+    TUMAN3M: 0.06
+  BEILI2:
+    ASDEX: 0.1
+    AUG: 0.03
+    CMOD: 0.03
+    D3D: 0.03
+    JET: 0.05
+    JFT2M: 0.1
+    JT60U: 0.05
+    PBXM: 0.1
+    PDX: 0.1
+    TCV: 0.03
+    TEXTOR: 0.2
+    TFTR: 0.04
+    TDEV: 0.05
+    T10: 0.1
+  BEIMHD:
+    ASDEX: 0.15
+    JET: 0.12
+    JFT2M: 0.15
+    PBXM: 0.15
+    PDX: 0.15
+    TCV: 0.1
+    TEXTOR: 0.15
+    T10: 0.1
+  DWDIAPAR:
+    ASDEX: 0.2
+  TAUDIA:
+    AUG: 0.15
+    COMPASS: 0.15
+    D3D: 0.15
+    JFT2M: 0.2
+    JT60U: 0.15
+    PDX: 0.2
+    TEXTOR: 0.15
+    TDEV: 0.3
+    T10: 0.25
+    TUMAN3M: 0.21
+  TAUMHD:
+    ASDEX: 0.15
+    AUG: 0.15
+    CMOD: 0.15
+    D3D: 0.15
+    JET: 0.35
+    JFT2M: 0.2
+    PBXM: 0.2
+    PDX: 0.2
+    TCV: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.3
+    START: 0.15
+    T10: 0.25
+  IEML:
+    JFT2M: 0.01
+  BMHDMDIA:
+    ASDEX: 0.05
+    JFT2M: [0.1, 0.2]
+  PALPHA:
+    JET: 0.1
+    TFTR: 0.2
+  TICX0:
+    JET: 0.1
+    JT60U: 0.1
+  TAUC92:
+    ASDEX: 0.1
+    PDX: 0.1
+  TAUC93:
+    ASDEX: 0.1
+    PDX: 0.1
+  ELMMAX:
+    JET: 0.2
+  ELMDUR:
+    JET: 0.2
+  ELMINT:
+    JET: 0.2
+  FUELRATE:
+    AUG: 0.2
+    JET: 0.2
+  INDENT:
+    PBXM: 0.15
+  XPLIM:
+    TCV: 0.02
+    D3D: {abs: 0.03}
+    JET: {abs: 0.05}
+    JFT2M: {abs: 0.03}
+    JT60U: {abs: 0.02}
+    PBXM: {abs: 0.05}
+    PDX: {abs: 0.05}
+    TDEV: {abs: 0.01}
+  NE0TSC:
+    ASDEX: 0.05
+    AUG: 0.3
+    D3D: 0.1
+    JT60U: 0.1
+    TCV: 0.1
+  ZEFFNEO:
+    ASDEX: 0.15
+    JET: 0.25
+  ENBI:
+    AUG: 0.05
+    D3D: 0.1
+    JET: 0.12
+    JFT2M: 0.05
+    JT60U: 0.05
+    PBXM: 0.15
+    PDX: 0.15
+    TEXTOR: 0.05
+    TFTR: 0.05
+  PFLOSS:
+    ASDEX: 0.3
+    AUG: 0.2
+    D3D: 0.3
+    JET: 0.5
+    JFT2M: 0.2
+    JT60U: 0.2
+    PBXM: 0.2
+    PDX: 0.3
+    TEXTOR: 0.3
+    TFTR: 0.2
+    START: 0.2
+  PECRH:
+    COMPASS: 0.15
+    D3D: 0.1
+    TDEV: 0.1
+    T10: 0.15
+  PICRH:
+    AUG: 0.1
+    CMOD: 0.1
+    JET: 0.1
+    TEXTOR: 0.1
+    D3D: [0.1, 0.2]
+  DWMHD:
+    ASDEX: 0.2
+    AUG: 0.3
+    CMOD: 0.2
+    D3D: 0.25
+    JET: 0.2
+    JFT2M: 0.2
+    PBXM: 0.1
+    PDX: 0.1
+    TCV: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.25
+    START: 0.2
+    T10: 0.15
+  TE0TSC:
+    ASDEX: 0.05
+    D3D: 0.1
+    JT60U: 0.1
+  WFFORM:
+    ASDEX: 0.15
+    AUG: 0.3
+    D3D: 0.5
+    JET: 0.5
+    JT60U: 0.2
+    TEXTOR: 0.3
+    START: 0.2
+  WFANI:
+    ASDEX: 0.07
+    AUG: 0.4
+    D3D: 0.5
+    JET: 0.5
+    TEXTOR: 0.3
+    TFTR: 0.2
+  WFICRH:
+    CMOD: 0.5
+    JET: 0.5
+  WFICRHP:
+    JET: 0.5
+  WFICFORM:
+    JET: 0.5
+  WFANIIC:
+    JET: 0.5
