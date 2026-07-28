@@ -634,7 +634,7 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     sentinels = [sidecar["sentinels"].get(str(name)) for name in df["csv_column"]]
     df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
 
-    # _check_sidecar_names matches against every variable in the workbook, not just the kept rows.
+    # _check_sidecar_names matches against every variable in the crosswalk, not just the kept rows.
     df.attrs["all_csv_columns"] = all_csv_columns
     return df
 

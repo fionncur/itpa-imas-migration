@@ -16,15 +16,15 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `imas_description`   | str                  | Description of the IDS target field (automatically populated by DD) |
 | `imas_standard_name` | str                  | IMAS standard name for the variable; used as `identifier/name` for `manifest` rows (falls back to `csv_column` when blank) |
 | `kind`               | str                  | `constant`, `dynamic`, or `static` (automatically populated by DD) |
-| `status`             | str                  | `mapped`, `mapped_caveat`, `manifest`, `derived` or `discard` (see [Status values](#status-values)) |
+| `status`             | str                  | `mapped`, `mapped_caveat`, `manifest`, `derived` or `discard` (see [Status values](#status-values)) |
 | `notes`              | str                  | Free-text notes, caveats, warnings, etc. |
 | `transform`          | str                  | `identity`, `dictionary`, or `formula` (see [Transform types](#transform-types)) |
 | `transform_args`     | str                  | Arguments for the transform (dict literal or Python expression). |
 | `needs_source`       | bool                 | When `True`, write a value plus a companion sibling instead of a bare value (see [Value/source pairs](#valuesource-pairs)) |
 | `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves written when `needs_source=True`; defaults to `("value", "source")` |
-| `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
-| `errors`             | str                  | Optional `{machine: error}` dict literal giving per-machine error bars (see [Error bars](#error-bars-errors)) |
-| `sentinels`          | str                  | Optional list literal of source no-data placeholders, numbers and/or strings (e.g. `[-9.999e-09, 1.7e+38, "N/A"]`); a source value **exactly equal** to an entry is treated as missing so the leaf falls back to the IMAS empty (`EMPTY_FLOAT`/`EMPTY_INT`, or `""` for string leaves). |
+| `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
+
+The spreadsheet describes the **mapping** (what to write and where).  Three further per-variable concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, and conflict-resolution rules.  See [The sidecar](#the-sidecar).
 
 ### Missing values and no-data markers
 
@@ -92,7 +92,7 @@ This writes `data_row["TIME_X"] - data_row["TIME_Y"]` to the target path. Python
 Notes and limitations:
 
 - Only columns whose names are **valid Python identifiers** can be referenced (no spaces, no leading digits).
-- The primary `csv_column` is validated at startup; other columns named in the expression are resolved at run time.  A typo or a bad expression raises a `ValueError` naming the offending row and formula.
+- The primary `csv_column` is validated at startup; other columns named in the expression are resolved at run time.  A typo raises a `ValueError` at startup naming the offending row and formula; an expression that parses but fails at run time (bad date, division by zero) warns and skips that row, leaving the leaf empty.
 
 ---
 
@@ -114,7 +114,7 @@ Always targets element `n` of the AoS.  The array is resized if needed.
 core_sources/source(:)/identifier/index
 ```
 
-The `:` is a placeholder resolved at write time.  For `imas_path` wildcards the index comes from the position in the list produced by the dictionary-of-lists expansion (`enumerate(value)`), so the first element lands at `(0)`, the second at `(1)`, and so on.  Two crosswalk rows that both carry `(:)` in their paths are independent — each starts from `0`.
+The `:` is a placeholder resolved at write time.  For `imas_path` wildcards the index comes from the position in the list produced by the dictionary-of-lists expansion (`enumerate(value)`), so the first element lands at `(0)`, the second at `(1)`, and so on.  Two crosswalk rows that both carry `(:)` in their paths are independent (each starts from `0`).
 
 Wildcards are resolved segment-by-segment by `replace_wildcard_index()`: it replaces only the `(:)` suffix of the matched segment (e.g.`source(:)` → `source(0)`), leaving the rest of the path untouched.
 
@@ -187,7 +187,7 @@ So the companion gating is asymmetric by type:
 
 When provenance differs across machines, set `source` to a Python dict literal mapping machine name to the provenance string.  The cell is parsed with `ast.literal_eval()` and must be a valid dict literal.
 
-An optional `"default"` key applies to any machine that has no more specific entry of its own.  A machine-specific entry always overrides `"default"` entirely (it is not joined or concatenated) — use it for the machines whose provenance genuinely differs from the rest.
+An optional `"default"` key applies to any machine that has no more specific entry of its own.  A machine-specific entry always overrides `"default"` entirely (it is not joined or concatenated). Use it for the machines whose provenance genuinely differs from the rest.
 
 ```
 # needs_source=True, source = {"default": "EFIT", "JET": "JFIT"}
@@ -200,21 +200,66 @@ A dict source is resolved per pulse against the pulse's machine name and written
 
 ---
 
-## Error bars (`errors`)
+## The sidecar
+
+Some per-variable information is a property of the **data**, not of the mapping, and is sparse: only a handful of variables carry it, and it is structured (a list, or a value per machine) rather than a single scalar. A crosswalk column would cost a cell on every row and force that structure to be stringified. It lives instead in a YAML **sidecar** named `<mapping stem>.yaml`, e.g. `resources/mappings/2008_crosswalk.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no CLI flag is involved.
+
+The file has three optional top-level sections, each keyed by `csv_column`:
+
+```yaml
+resolve:                        # conflict rules for constants that vary across time-slices
+  LUPDATE:
+    strategy: max
+  EVAP:
+    strategy: avoid
+    avoid: ["NONE"]
+
+sentinels:                      # no-data placeholder values
+  AUXTIME: [-9.999e-09]
+  ECHMODE: ["????????", "."]
+
+errors:                         # per-machine error bars
+  IP:
+    JET: 0.05
+    TFTR: {abs: 300000}
+    D3D: [0.10, 0.20]
+```
+
+An entry naming a variable absent from the crosswalk warns at startup. A **missing sidecar file** also warns and applies nothing. An unrecognised section name raises.
+
+### `sentinels`
+
+A list of no-data placeholders for one variable. A source value **exactly equal** to an entry is treated as missing, so the leaf falls back to the IMAS empty (`EMPTY_FLOAT`/`EMPTY_INT`, or `""` for string leaves) instead of being written as a real datum.
+
+Matching is by exact value **and type**. Where a CSV column holds a mix of ints and strings (pandas reads it as `object` dtype) list both forms, e.g. `NESOL: [0, "0"]`; a bare `[0]` will not match the string `"0"` and the sentinel silently does nothing. Strings are stripped before comparison, matching how the data CSV is loaded.
+
+Sentinel values are also excluded from the dictionary-coverage check, so a placeholder is not reported as an uncovered `dictionary` key.
+
+PyYAML follows YAML 1.1, where a float in exponent form needs **both** a decimal point and a signed exponent. The same value written three ways: `1.0e+38` is a float, while `1e+38` (no decimal point) and `1.0e38` (unsigned exponent) are **strings**, and a string sentinel never matches a numeric cell. Plain decimals such as `0.00000001` are always safe.
+
+### `resolve`
+
+See [Resolving constant conflicts across slices](#resolving-constant-conflicts-across-slices).
+
+### `errors`
 
 Many IDS leaves carry an uncertainty in a sibling field: for a value at `IMAS_PATH`, the upper error bar lives at `IMAS_PATH + "_error_upper"`. Because the confinement database spans multiple devices with different measurement uncertainties, error bars are authored **per machine**.
 
-Set `errors` to a dict literal mapping machine name to an error **spec**. It is parsed with `ast.literal_eval()`. Each spec is one of three forms:
+Each machine maps to an error **spec** in one of three forms:
 
-| Spec     | Literal           | Bar written |
+| Spec     | YAML              | Bar written |
 | -------- | ----------------- | ----------- |
 | Relative | `0.03` (= 3 %)    | `abs(value) * 0.03` |
-| Range    | `[0.10, 0.20]`    | `abs(value) * max(range)` — conservative upper bound; the min is discarded |
-| Absolute | `{"abs": 300000}` | the value verbatim, in IDS units (independent of `value`) |
+| Range    | `[0.10, 0.20]`    | `abs(value) * max(range)` (conservative upper bound; the min is discarded) |
+| Absolute | `{abs: 300000}`   | the value verbatim, in IDS units (independent of `value`) |
 
-```
-# imas_path = "summary/global_quantities/ip"
-# errors = {"JET": 0.05, "AUG": 0.03, "TFTR": {"abs": 300000}, "D3D": [0.10, 0.20]}
+```yaml
+errors:
+  IP:                           # -> summary/global_quantities/ip
+    JET: 0.05
+    AUG: 0.03
+    TFTR: {abs: 300000}
+    D3D: [0.10, 0.20]
 ```
 
 For each pulse the script looks up that pulse's machine (the value mapped to `summary/machine`) and, if it is a key, writes the resolved bar to the `_error_upper` sibling of wherever the row's value landed:
@@ -224,12 +269,12 @@ For each pulse the script looks up that pulse's machine (the value mapped to `su
 
 Behaviour:
 
-- **Blank cell** → nothing extra written (normal behaviour).
-- **Machine not in the dict** → no error written for that pulse, silently.
+- **No entry for the variable** → nothing extra written (normal behaviour).
+- **Machine not in the mapping** → no error written for that pulse, silently.
 
-Relative and range bars are *relative*, so the absolute bar tracks the actual datum, including the post-transform result for `dictionary`/`formula` rows. An **absolute** spec is written verbatim and must already be in IDS units — the author pre-converts (e.g. cm→m, kW→W); `csv_unit`/`imas_unit` are documentation-only columns in the crosswalk, not an automatic conversion the script applies. The lookup requires a row mapping to `summary/machine`; the script raises at load if `errors` is used without one.
+Relative and range bars are *relative*, so the absolute bar tracks the actual datum, including the post-transform result for `dictionary`/`formula` rows. An **absolute** spec is written verbatim and must already be in IDS units (the author pre-converts, e.g. cm→m, kW→W); `csv_unit`/`imas_unit` are documentation-only columns in the crosswalk, not an automatic conversion the script applies. The lookup requires a row mapping to `summary/machine`; the script raises at load if `errors` is used without one.
 
-Errors that cannot be expressed in these three forms — compound (`±15% abs + ±2% rel`), value-conditional (phase-dependent), formula-dependent (`±0.05/bp`), or unquantified — are left as free-text notes rather than encoded.
+Errors that cannot be expressed in these three forms are left as free-text `notes` rather than encoded: compound (`±15% abs + ±2% rel`), value-conditional (phase-dependent), formula-dependent (`±0.05/bp`), or unquantified.
 
 ---
 
@@ -251,7 +296,7 @@ The `csv_dtype` column names the bucket and its indexing mode:
 
 The `constant_*` buckets store a single scalar per pulse.  The `dynamic_*` buckets accumulate one value per time-slice and are only meaningful in the default per-pulse mode (they reduce to a one-element array in `--per-time-slice` mode).  When the script is run with `--simdb`, all populated bucket types (constant and dynamic) are extracted into the manifest's `variables.*` metadata.
 
-The `(:)` suffix assigns a **stable index**, keyed by the segment name before `(:)` (e.g. `constant_float0d`).  Indices are assigned once, in crosswalk (row) order — **not** per pulse — so a given variable occupies the **same** slot in every pulse.  A pulse that lacks data for a variable simply leaves that slot empty.  This gives a deterministic, consistent layout across all pulses.
+The `(:)` suffix assigns a **stable index**, keyed by the segment name before `(:)` (e.g. `constant_float0d`).  Indices are assigned once, in crosswalk (row) order (**not** per pulse), so a given variable occupies the **same** slot in every pulse.  A pulse that lacks data for a variable simply leaves that slot empty.  This gives a deterministic, consistent layout across all pulses.
 
 As with physics-IDS rows, both the value and the descriptor strings (identifier name/description) are written directly into the pulse:
 
@@ -269,7 +314,7 @@ The `imas_path` column is ignored for manifest rows; the entire path is derived 
 
 ### Diversion under `--simdb`
 
-By default the `temporary` IDS is written to the HDF5 backend like any other root.  When the script is run with `--simdb` (see [SimDB ingestion](#simdb-ingestion---simdb)), the `temporary` IDS is built in memory exactly as above but **not** written to disk; instead its scalars are read back out (`identifier/name` → `value`) and attached to the pulse's SimDB manifest as `standard_name.*`/`dbvariable.*` metadata (see [SimDB ingestion](#simdb-ingestion---simdb) for how that split is decided).  `csv_dtype` still drives the in-memory layout in both cases.
+By default the `temporary` IDS is written to the HDF5 backend like any other root.  When the script is run with `--simdb` (see [SimDB ingestion](#simdb-ingestion---simdb)), the `temporary` IDS is built in memory exactly as above but **not** written to disk; instead its scalars are read back out (`identifier/name` → `value`) and attached to the pulse's SimDB manifest as `standard_name.*`/`db_variable.*` metadata (see [SimDB ingestion](#simdb-ingestion---simdb) for how that split is decided).  `csv_dtype` still drives the in-memory layout in both cases.
 
 ---
 
@@ -281,6 +326,7 @@ By default the `temporary` IDS is written to the HDF5 backend like any other roo
 | `mapped_caveat` | Written to the IDS but subject to known caveats (sign conventions, approximations). See `notes`. |
 | `manifest`      | Stored in the `temporary` IDS instead of a physics IDS (diverted into the SimDB manifest under `--simdb`).  Useful for quantities that have no stable IMAS path yet. |
 | `derived`       | Not currently implemented; row is skipped.  Reserved for quantities that must be computed from other fields. |
+| `discard`       | Deliberately not migrated; row is skipped.  See `notes` for why. |
 
 Rows without a recognised `transform` value (`identity`, `dictionary`, `formula`) are also silently excluded from processing.
 
@@ -290,8 +336,8 @@ Rows without a recognised `transform` value (`identity`, `dictionary`, `formula`
 
 The crosswalk is **one-row-per-source-column**, not one-row-per-target-path.  A single source column can write to multiple targets in two complementary ways:
 
-1. **`&`-separated paths** in `imas_path` — same value, multiple destinations.
-2. **Dictionary of lists** — one source value expands into multiple elements of an AoS via wildcard indexing.
+1. **`&`-separated paths** in `imas_path`: same value, multiple destinations.
+2. **Dictionary of lists**: one source value expands into multiple elements of an AoS via wildcard indexing.
 
 Both mechanisms are resolved within `resolve_writes()` and require no special columns beyond those already described.
 
@@ -307,12 +353,13 @@ anyway); recoverable ones **warn** and continue:
 | ----- | --------- |
 | Every `csv_column` exists in the data CSV | raise |
 | Every `imas_path` (after `&` split and index stripping) exists in the DD; for `needs_source` rows both `source_fields` leaves exist under the node | raise |
-| Formula `transform_args` parse, and every bare name is a CSV column or Python builtin | raise |
+| Formula `transform_args` parse, and every free name is a CSV column or Python builtin | raise |
 | Dictionary / formula rows have a `transform_args` string | raise |
 | Dictionary keys cover every value observed in the data column | warn, listing each uncovered value with its count (those rows are skipped silently at run time) |
 | Machine keys in `errors` and dict-valued `source` cells name machines observed in the data (`"default"` exempt) | warn (a key that never matches writes nothing) |
-| `needs_source` rows have a usable `source` | warn, companion leaf not written |
 | `manifest` rows have a `csv_dtype` | warn, row skipped |
+| Every sidecar entry names a `csv_column` present in the crosswalk | warn (an orphaned entry is never applied) |
+| The sidecar file exists | warn, no sentinels/errors/resolve rules applied |
 
 ---
 
@@ -342,6 +389,7 @@ Run `python idstools/scripts/bin/idsmigration -h` for the full help. The argumen
 | `--dd-version`       | `4.1.1`               | Data Dictionary version used to build the IDS factory |
 | `--simdb`            | off                   | Ingest each migrated pulse into the local SimDB (see below) |
 | `--per-time-slice`   | off                   | Write one IDS set per CSV row instead of one per `(machine, pulse)` group |
+| `-v`, `--verbose`    | off                   | Print each constant conflict as it is resolved (see [Seeing the conflicts](#seeing-the-conflicts--v)) |
 
 ### Default mode: per-pulse grouping
 
@@ -361,16 +409,17 @@ resources/results/tc26/
 
 ### Resolving constant conflicts across slices
 
-A "constant"/`static` quantity that disagrees across a pulse's time-slices (e.g. a source data glitch, or two slices that should never differ physically) is, by default, resolved by keeping the first-seen value and printing a warning. For datasets where a handful of variables (typically 2-5) need a specific resolution instead, add a YAML sidecar next to the crosswalk, named `<mapping stem>.resolve.yaml` — e.g. `resources/mappings/2008_crosswalk.resolve.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no new CLI flag or crosswalk column is needed.
+A "constant"/`static` quantity that disagrees across a pulse's time-slices (e.g. a source data glitch, or two slices that should never differ physically) is, by default, resolved by keeping the first-seen value, and reported in a summary tally at the end of the run. For datasets where a handful of variables (typically 2-5) need a specific resolution instead, add a `resolve:` section to the dataset's [sidecar](#the-sidecar).
 
-The sidecar maps a `csv_column` name to a resolution strategy:
+It maps a `csv_column` name to a resolution strategy:
 
 ```yaml
-LUPDATE:
-  strategy: max        # keep the lexicographically/chronologically greatest value
-EVAP:
-  strategy: avoid
-  avoid: ["NONE"]       # keep whichever candidate is not in this list
+resolve:
+  LUPDATE:
+    strategy: max         # keep the lexicographically/chronologically greatest value
+  EVAP:
+    strategy: avoid
+    avoid: ["NONE"]       # keep whichever candidate is not in this list
 ```
 
 Available strategies:
@@ -384,6 +433,18 @@ Available strategies:
 | `avoid`      | Keep whichever value is not in the required `avoid` list; if both or neither are, keeps the first-seen value |
 
 Strategies are applied incrementally as each slice is written, so `max`/`min`/`avoid` converge to the correct result across any number of conflicting slices regardless of arrival order. An unknown `strategy` name, or an `avoid` strategy missing its `avoid` list, raises an error when the sidecar is loaded at startup.
+
+### Seeing the conflicts (`-v`)
+
+The closing summary reports only *how many* pulses each variable was resolved in. To author the `resolve:` rules you need the values themselves: run with `-v`/`--verbose` and each conflict is printed as it is resolved, one line per (pulse, variable):
+
+```
+  conflict  ASDEX/32130  IGRADB: -1 vs 1 -- default (keep_first) keeps -1
+  conflict  CMOD/931027036  EVAP: 'NONE' vs 'Li' -- avoid keeps 'Li'
+  conflict  CMOD/941129022  LUPDATE: '1995-01-10T00:00:00Z' vs '1995-01-21T00:00:00Z' -- max keeps '1995-01-21T00:00:00Z'
+```
+
+Lines reading `default (keep_first)` are the variables with no `resolve:` entry (they show what the fallback is silently choosing, which is usually what motivates adding a rule). The line count always matches the closing tally: both are keyed on (pulse, variable), so a pulse whose slices disagree repeatedly is reported once, on its first disagreement.
 
 ### `--per-time-slice` mode (one IDS per row)
 
@@ -414,12 +475,12 @@ Each entry's manifest carries:
 
 | Field                                   | Source |
 | --------------------------------------- | ------ |
-| `alias`                                 | **default mode:** `{dataset}/{machine}/{pulse}` — **`--per-time-slice` mode:** `{dataset}-{machine}-{index}`, where `dataset` is the `--experiment` value and `index` is a per-machine counter |
+| `alias`                                 | **default mode:** `{dataset}/{machine}/{pulse}`; **`--per-time-slice` mode:** `{dataset}-{machine}-{index}`, where `dataset` is the `--experiment` value and `index` is a per-machine counter |
 | `metadata.dataset` / `metadata.machine` | the experiment label and the pulse's `summary/machine` value |
 | `metadata.standard_name.*`              | manifest quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has an `imas_standard_name`, keyed by that standard name |
-| `metadata.dbvariable.*`                 | the same, for manifest quantities with no `imas_standard_name`, keyed by `csv_column` instead |
-| `outputs.uri`                           | `imas:hdf5?path=<pulse_dir>#summary` — a **reference** to the on-disk summary IDS |
+| `metadata.db_variable.*`                | the same, for manifest quantities with no `imas_standard_name`, keyed by `csv_column` instead |
+| `outputs.uri`                           | `imas:hdf5?path=<pulse_dir>#summary` (a **reference** to the on-disk summary IDS) |
 
-Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a set `imas_standard_name` sends it to `standard_name.<name>`; a blank one falls back to `dbvariable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet — e.g. `simdb simulation query standard_name.loss_power=...` vs `dbvariable.SELEC2007=...`.
+Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a set `imas_standard_name` sends it to `standard_name.<name>`; a blank one falls back to `db_variable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet (e.g. `simdb simulation query standard_name.loss_power=...` vs `db_variable.SELEC2007=...`).
 
 SimDB is a metadata catalogue: it stores the manifest plus a checksummed *reference* to the `summary` IDS, not its array data.  The `summary` IDS is therefore always written to HDF5, with or without `--simdb`; only the `temporary` IDS write is suppressed when ingesting.  A `summary/machine` mapping row is required; the script raises at load if `--simdb` is used without one.
