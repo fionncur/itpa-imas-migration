@@ -1,7 +1,6 @@
 sentinels:
   HYBRID: ["UNKNOWN"]
   ITB: ["UNKNOWN"]
-  # form markers (auto-handled): '???????' x100
   ELMTYPE: ["UNKNOWN"]
   DIVMAT: ["NONE"]
   LIMMAT: ["NONE"]
@@ -9,13 +8,11 @@ sentinels:
   ECHLOC: ["UNKNOWN"]
   ICSCHEME: ["UNKNOWN"]
   ICANTEN: ["UNKNOWN"]
-  # suspected 0 (x628): global min; machine-exclusive: JET x628
   NESEP: [0]
-  # suspected 0 (x628): global min; machine-exclusive: JET x628
   NESOL: [0, "0"]
-  # ELMMAX: []  # unconfirmed -- suspected 0 (x7489): global min
-  # ELMDUR: []  # unconfirmed -- suspected 0 (x7489): global min
-  # ELMINT: []  # unconfirmed -- suspected 0 (x7489): global min
+  ELMMAX: [0] 
+  ELMDUR: [0] 
+  ELMINT: [0] 
   # OLTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825 | suspected 52 (x241): extremity (52 vs median 1.096 +/- 10*IQR); machine-exclusive: JET x241 | suspected 51 (x120): extremity (51 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 53 (x120): extremity (53 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 54 (x96): extremity (54 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x96 | suspected 48 (x90): extremity (48 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x90 | suspected 50 (x79): extremity (50 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x79
   # LHTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825
   # FUELRATE: []  # unconfirmed -- suspected 0 (x1537): global min
