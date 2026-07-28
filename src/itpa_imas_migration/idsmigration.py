@@ -111,24 +111,19 @@ def replace_wildcard_index(branch: Branch, idx: int) -> Branch:
     return [f"{seg[:-3]}({idx})" if seg.endswith("(:)") else seg for seg in branch]
 
 
-def _literal_cell(cell: Any, what: str) -> Any:
-    """Parse a crosswalk cell holding a Python literal; blank / NaN -> None."""
-    if not isinstance(cell, str) or cell.strip() == "":
-        return None
-    try:
-        return ast.literal_eval(cell.strip())
-    except (ValueError, SyntaxError) as e:
-        raise ValueError(f"{what} {cell!r} is not a valid Python literal: {e}")
-
-
 def parse_source_pair(source_fields_val: Any, csv_column: str) -> tuple[str, str]:
     """Parse a source_fields cell into a (value_leaf, source_leaf) pair.
 
     Blank / NaN -> ("value", "source"), as a default.
     """
-    parsed = _literal_cell(source_fields_val, f"source_fields for csv_column '{csv_column}'")
-    if parsed is None:
+    if not isinstance(source_fields_val, str) or source_fields_val.strip() == "":
         return ("value", "source")
+    try:
+        parsed = ast.literal_eval(source_fields_val.strip())
+    except (ValueError, SyntaxError) as e:
+        raise ValueError(
+            f"source_fields for csv_column '{csv_column}' {source_fields_val!r} is not a valid Python literal: {e}"
+        )
     if not isinstance(parsed, tuple) or len(parsed) != 2 or not all(isinstance(p, str) for p in parsed):
         raise ValueError(
             f"source_fields for csv_column '{csv_column}' must be a 2-tuple of "
@@ -137,19 +132,16 @@ def parse_source_pair(source_fields_val: Any, csv_column: str) -> tuple[str, str
     return parsed
 
 
-def parse_errors(errors_val: Any) -> dict | None:
-    """Parse an `errors` cell into a {machine: spec} dict. Blank/NaN -> None.
+def check_errors(spec_by_machine: Any, name: str) -> dict:
+    """Validate one sidecar `errors` entry: {machine: spec} for a single variable.
 
     Each spec is a relative float (error = |value| * rel), a 2-element range [min, max]
     (relative; the conservative max is used), or an absolute {"abs": value} written
     verbatim in IDS units. See docs/migration.md.
     """
-    parsed = _literal_cell(errors_val, "errors")
-    if parsed is None:
-        return None
-    if not isinstance(parsed, dict):
-        raise ValueError(f"errors must be a dict literal, e.g. {{'JET': 0.05}}; got {parsed!r}")
-    for machine, spec in parsed.items():
+    if not isinstance(spec_by_machine, dict):
+        raise ValueError(f"errors: {name!r} must be a machine mapping, e.g. {{JET: 0.05}}; got {spec_by_machine!r}")
+    for machine, spec in spec_by_machine.items():
         valid = (
             is_number(spec)
             or (isinstance(spec, (list, tuple)) and len(spec) == 2 and all(is_number(p) for p in spec))
@@ -157,32 +149,28 @@ def parse_errors(errors_val: Any) -> dict | None:
         )
         if not valid:
             raise ValueError(
-                f"errors spec for machine '{machine}' must be a relative float, a 2-element "
-                f"numeric range [min, max], or an absolute {{'abs': value}}; got {spec!r}"
+                f"errors: {name!r} spec for machine '{machine}' must be a relative float, a 2-element "
+                f"numeric range [min, max], or an absolute {{abs: value}}; got {spec!r}"
             )
-    return parsed
+    return spec_by_machine
 
 
-def parse_sentinels(sentinels_val: Any) -> list | None:
-    """Parse a `sentinels` cell into a list of no-data placeholders (numbers and/or strings).
+def check_sentinels(values: Any, name: str) -> list:
+    """Validate one sidecar `sentinels` entry: a list of no-data placeholders for a single variable.
 
     A source value exactly equal to any entry is treated as missing, so the target leaf falls back to
-    the IMAS empty. Numbers keep the int/float type ast.literal_eval gives them; strings are stripped
-    to match load_dataset's stripping.
+    the IMAS empty. Strings are stripped to match load_dataset's stripping.
     """
-    parsed = _literal_cell(sentinels_val, "sentinels")
-    if parsed is None:
-        return None
-    if not isinstance(parsed, (list, tuple)):
-        raise ValueError(f"sentinels must be a list literal, e.g. [-9.999e-09, 'N/A']; got {parsed!r}")
+    if not isinstance(values, (list, tuple)):
+        raise ValueError(f"sentinels: {name!r} must be a list, e.g. [-9.999e-09, 'N/A']; got {values!r}")
     out = []
-    for v in parsed:
+    for v in values:
         if is_number(v):
             out.append(v)
         elif isinstance(v, str):
             out.append(v.strip())
         else:
-            raise ValueError(f"sentinels entries must be numbers or strings; got {v!r}")
+            raise ValueError(f"sentinels: {name!r} entries must be numbers or strings; got {v!r}")
     return out
 
 
@@ -319,7 +307,7 @@ def set_leaf(ids: IDS, branch: Branch, value: Any, context: WriteContext = Write
 
     Dynamic numeric leaves are filled by array position; constant/static leaves are written once
     and, when `context.n_slices > 1`, checked for agreement across slices. On mismatch,
-    `context.resolve_spec` (variable name -> {strategy, ...}, see `load_resolve_spec`) is consulted to
+    `context.resolve_spec` (variable name -> {strategy, ...}, see `load_sidecar`) is consulted to
     reduce the conflicting values; unconfigured variables keep a default of warning and keeping first.
     """
     parent, leaf = resolve_parent(ids, branch)
@@ -567,20 +555,37 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_resolve_spec(mapping_path: pathlib.Path) -> dict[str, dict]:
-    """Load the optional per-dataset conflict-resolution sidecar next to a crosswalk.
+SIDECAR_SECTIONS = ("resolve", "sentinels", "errors")
 
-    The sidecar (`<mapping stem>.resolve.yaml`) maps a crosswalk variable name (csv_column) to a
-    resolution strategy applied when that variable's value disagrees across a pulse's time-slices
-    -- see `_resolve_conflict`. Absent file -> `{}` (today's warn-and-keep-first default for every
-    variable). No crosswalk-column or CLI-flag changes are needed to opt a variable in.
+
+def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
+    """Load the per-dataset sidecar next to a crosswalk, as {section: {csv_column: entry}}.
+
+    The sidecar (`<mapping stem>.yaml`) carries the per-variable data that has no place in a
+    one-row-per-variable spreadsheet:
+
+      resolve   : conflict-resolution strategy for a constant that disagrees across a pulse's
+                  time-slices -- see `_resolve_conflict`
+      sentinels : no-data placeholder values -- see `check_sentinels`
+      errors    : per-machine error bars -- see `check_errors`
+
+    Every section is optional, however a missing file gives warning.
     """
-    spec_path = pathlib.Path(mapping_path).with_suffix(".resolve.yaml")
+    spec_path = pathlib.Path(mapping_path).with_suffix(".yaml")
     if not spec_path.is_file():
-        return {}
+        print(f"WARNING: no sidecar at {spec_path} -- no sentinels, error bars or conflict rules will be applied")
+        return {section: {} for section in SIDECAR_SECTIONS}
+
     with open(spec_path, encoding="utf-8") as f:
         spec = yaml.safe_load(f) or {}
-    for name, entry in spec.items():
+    unknown_sections = set(spec) - set(SIDECAR_SECTIONS)
+    if unknown_sections:
+        raise ValueError(
+            f"{spec_path}: unknown section(s) {sorted(unknown_sections)}; expected {list(SIDECAR_SECTIONS)}"
+        )
+
+    sidecar = {section: dict(spec.get(section) or {}) for section in SIDECAR_SECTIONS}
+    for name, entry in sidecar["resolve"].items():
         strategy = entry.get("strategy")
         if strategy not in KNOWN_RESOLVE_STRATEGIES:
             raise ValueError(
@@ -589,12 +594,15 @@ def load_resolve_spec(mapping_path: pathlib.Path) -> dict[str, dict]:
             )
         if strategy == "avoid" and not entry.get("avoid"):
             raise ValueError(f"{spec_path}: {name!r} uses strategy 'avoid' but has no 'avoid' list")
-    return spec
+    sidecar["errors"] = {name: check_errors(spec, name) for name, spec in sidecar["errors"].items()}
+    sidecar["sentinels"] = {name: check_sentinels(values, name) for name, values in sidecar["sentinels"].items()}
+    return sidecar
 
 
-def load_crosswalk(mapping_path: pathlib.Path) -> pd.DataFrame:
-    """Read the crosswalk xlsx, keep implemented+accepted rows, and parse source pairs."""
+def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.DataFrame:
+    """Read the crosswalk xlsx, keep implemented+accepted rows, and attach the sidecar entries."""
     df = pd.read_excel(mapping_path)
+    all_csv_columns = set(df["csv_column"].dropna().astype(str))
 
     # Convert needs_source to boolean.
     df["needs_source"] = df["needs_source"].fillna(False).astype(bool)
@@ -619,19 +627,15 @@ def load_crosswalk(mapping_path: pathlib.Path) -> pd.DataFrame:
         pairs = [("value", "source")] * len(df)
     df["_source_pair"] = pd.Series(pairs, index=df.index, dtype=object)
 
-    # Parse the optional errors column into {machine: spec} dicts (or None).
-    if "errors" in df.columns:
-        errors = [parse_errors(e) for e in df["errors"]]
-    else:
-        errors = [None] * len(df)
+    # Attach the sidecar's per-variable entries, keyed by csv_column; absent -> None.
+    errors = [sidecar["errors"].get(str(name)) for name in df["csv_column"]]
     df["_errors"] = pd.Series(errors, index=df.index, dtype=object)
 
-    # Parse the optional sentinels column into lists of no-data placeholders (or None).
-    if "sentinels" in df.columns:
-        sentinels = [parse_sentinels(s) for s in df["sentinels"]]
-    else:
-        sentinels = [None] * len(df)
+    sentinels = [sidecar["sentinels"].get(str(name)) for name in df["csv_column"]]
     df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
+
+    # _check_sidecar_names matches against every variable in the workbook, not just the kept rows.
+    df.attrs["all_csv_columns"] = all_csv_columns
     return df
 
 
@@ -724,8 +728,20 @@ def _check_machine_keys(df: pd.DataFrame, data: pd.DataFrame) -> None:
                     )
 
 
-def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> None:
-    """Upfront validation of the crosswalk against the data CSV and the Data Dictionary."""
+def _check_sidecar_names(df: pd.DataFrame, sidecar: dict[str, dict]) -> None:
+    """Sidecar entries should name a crosswalk variable, else a rename has orphaned them."""
+    known = df.attrs.get("all_csv_columns", set(df["csv_column"].astype(str)))
+    for section, entries in sidecar.items():
+        unknown = sorted(set(entries) - known)
+        if unknown:
+            print(
+                f"WARNING: sidecar '{section}' has entr(ies) {unknown} matching no csv_column "
+                f"in the crosswalk -- they will never be applied"
+            )
+
+
+def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory, sidecar: dict[str, dict]) -> None:
+    """Upfront validation of the crosswalk against the data CSV, the Data Dictionary and the sidecar."""
     # Upfront validation: all csv_columns must exist in data.
     missing_cols = set(df["csv_column"]) - set(data.columns)
     if missing_cols:
@@ -735,6 +751,7 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory) -> 
     _check_dictionary_coverage(df, data)
     _check_formula_identifiers(df, data)
     _check_machine_keys(df, data)
+    _check_sidecar_names(df, sidecar)
 
     # Upfront validation: manifest rows must have a csv_dtype string.
     is_temp = df["status"] == "manifest"
@@ -885,7 +902,7 @@ def process_pulse(
 
             # Write per-machine error bars to the "_error_upper" extension of each leaf path.
             # errors holds {machine: spec}; error_bar() resolves each spec against the leaf
-            # value (relative, range, or absolute -- see parse_errors / docs/migration.md).
+            # value (relative, range, or absolute -- see check_errors / docs/migration.md).
             errors = cw_row["_errors"]
             if errors is not None and writes and machine in errors:  # machine miss -> skip silently
                 error_writes = [
@@ -1168,11 +1185,11 @@ def main() -> None:
     VERBOSE = args.verbose
     mapping_path = ROOT / "resources" / "mappings" / args.mapping
     output_dir = ROOT / "resources" / "results" / args.experiment
-    resolve_spec = load_resolve_spec(mapping_path)
-    crosswalk = load_crosswalk(mapping_path)
+    sidecar = load_sidecar(mapping_path)
+    crosswalk = load_crosswalk(mapping_path, sidecar)
     data = load_dataset(ROOT / "resources" / "input" / args.dataset)
     factory = imas.IDSFactory(version=args.dd_version)
-    validate(crosswalk, data, factory)
+    validate(crosswalk, data, factory, sidecar)
     crosswalk = build_write_spec(crosswalk)
 
     if args.simdb and not SIMDB_AVAILABLE:
@@ -1193,7 +1210,7 @@ def main() -> None:
         config=config,
         db=db,
         per_time_slice=args.per_time_slice,
-        resolve_spec=resolve_spec,
+        resolve_spec=sidecar["resolve"],
     )
 
 
