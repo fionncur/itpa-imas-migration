@@ -174,6 +174,16 @@ def check_sentinels(values: Any, name: str) -> list:
     return out
 
 
+def check_standard_names(value: Any, name: str) -> str:
+    """Validate one sidecar `standard_names` entry.
+
+    Used as `identifier/name` for `status=manifest` rows -- see `temp_var_name`.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"standard_names: {name!r} must be a non-empty string; got {value!r}")
+    return value.strip()
+
+
 def _try_parse_dict(x: Any) -> Any:
     """If x is a string that looks like a dict literal, parse and return the dict; else return x."""
     if isinstance(x, str) and x.strip().startswith("{"):
@@ -555,7 +565,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-SIDECAR_SECTIONS = ("resolve", "sentinels", "errors")
+SIDECAR_SECTIONS = ("resolve", "sentinels", "errors", "standard_names")
 
 
 def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
@@ -564,10 +574,11 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
     The sidecar (`<mapping stem>.yaml`) carries the per-variable data that has no place in a
     one-row-per-variable spreadsheet:
 
-      resolve   : conflict-resolution strategy for a constant that disagrees across a pulse's
-                  time-slices -- see `_resolve_conflict`
-      sentinels : no-data placeholder values -- see `check_sentinels`
-      errors    : per-machine error bars -- see `check_errors`
+      resolve        : conflict-resolution strategy for a constant that disagrees across a pulse's
+                        time-slices -- see `_resolve_conflict`
+      sentinels      : no-data placeholder values -- see `check_sentinels`
+      errors         : per-machine error bars -- see `check_errors`
+      standard_names : IMAS standard name for a manifest variable -- see `check_standard_names`
 
     Every section is optional, however a missing file gives warning.
     """
@@ -596,6 +607,9 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
             raise ValueError(f"{spec_path}: {name!r} uses strategy 'avoid' but has no 'avoid' list")
     sidecar["errors"] = {name: check_errors(spec, name) for name, spec in sidecar["errors"].items()}
     sidecar["sentinels"] = {name: check_sentinels(values, name) for name, values in sidecar["sentinels"].items()}
+    sidecar["standard_names"] = {
+        name: check_standard_names(value, name) for name, value in sidecar["standard_names"].items()
+    }
     return sidecar
 
 
@@ -633,6 +647,9 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
 
     sentinels = [sidecar["sentinels"].get(str(name)) for name in df["csv_column"]]
     df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
+
+    standard_names = [sidecar["standard_names"].get(str(name)) for name in df["csv_column"]]
+    df["_standard_name"] = pd.Series(standard_names, index=df.index, dtype=object)
 
     # _check_sidecar_names matches against every variable in the crosswalk, not just the kept rows.
     df.attrs["all_csv_columns"] = all_csv_columns
@@ -763,9 +780,10 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory, sid
 def temp_var_name(cw_row: pd.Series) -> tuple[str, str]:
     """Resolve a manifest row's identifier/name and its provenance kind.
 
-    Returns (imas_standard_name, "standard_name") when set, else (csv_column, "db_variable").
+    Returns (standard name, "standard_name") when the sidecar's `standard_names` section has an
+    entry for this row's csv_column, else (csv_column, "db_variable").
     """
-    std_name = cw_row.get("imas_standard_name", "")
+    std_name = cw_row.get("_standard_name")
     if isinstance(std_name, str) and std_name.strip():
         return std_name.strip(), "standard_name"
     return cw_row["csv_column"], "db_variable"

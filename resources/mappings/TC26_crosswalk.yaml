@@ -1,2 +1,8 @@
 sentinels:
   FRACNMIN: [-1.0e-08]
+
+standard_names:
+  SPLASMA: area_of_separatrix
+  IGRADB: ion_grad_b_drift_direction
+  DIVMAT: material_of_divertor_tile
+  PFLOSS: power_due_to_first_orbit_loss+power_due_to_charge_exchange
