@@ -272,6 +272,7 @@ def _resolve_conflict(strategy: str, old: Any, new: Any, avoid: list | None = No
     raise ValueError(f"unknown resolve strategy {strategy!r}")
 
 
+VERBOSE = False  # --verbose: report each constant conflict inline, not just the closing tally
 _seen_const_mismatch: set[tuple[Any, str]] = set()  # (pulse context, leaf path) already counted, at most once each
 _conflict_counts: collections.Counter = collections.Counter()  # (leaf path, strategy label) -> pulses resolved
 
@@ -358,15 +359,24 @@ def set_leaf(ids: IDS, branch: Branch, value: Any, context: WriteContext = Write
         if context.n_slices > 1 and target.has_value:
             # Identify the quantity by its crosswalk variable name
             name = context.label or "/".join(branch)
-            if not _values_equal(target.value, value):
+            previous = target.value
+            if not _values_equal(previous, value):
                 spec = (context.resolve_spec or {}).get(name)
-                if (context.pulse, name) not in _seen_const_mismatch:
+                strategy = spec["strategy"] if spec else "default (keep_first)"
+                first_for_pulse = (context.pulse, name) not in _seen_const_mismatch
+                if first_for_pulse:
                     _seen_const_mismatch.add((context.pulse, name))
-                    _conflict_counts[(name, spec["strategy"] if spec else "default (keep_first)")] += 1
+                    _conflict_counts[(name, strategy)] += 1
+                kept = previous
                 if spec is not None:
-                    resolved = _resolve_conflict(spec["strategy"], target.value, value, spec.get("avoid"))
-                    if not _values_equal(resolved, target.value):
-                        setattr(parent, leaf, resolved)
+                    kept = _resolve_conflict(strategy, previous, value, spec.get("avoid"))
+                    if not _values_equal(kept, previous):
+                        setattr(parent, leaf, kept)
+                if VERBOSE and first_for_pulse:
+                    _print_over_progress(
+                        f"  conflict  {context.pulse}  {name}: {previous!r} vs {value!r} "
+                        f"-- {strategy} keeps {kept!r}"
+                    )
             return  # keep the first value (or the value set by the resolved strategy above)
         setattr(parent, leaf, value)
 
@@ -546,6 +556,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Group CSV rows by (machine, pulse) and write one IDS set per pulse with all its "
         "time-slices, instead of one IDS set per row",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print each constant-quantity conflict as it is resolved (pulse, variable, the two "
+        "disagreeing values, strategy applied and the value kept)",
     )
     return parser.parse_args()
 
@@ -997,7 +1014,7 @@ def write_pulse_dir(output_dir: pathlib.Path, name: str, pulse_ids: dict[str, ID
     return pulse_dir
 
 
-def simdb_ingest(db: Any, config: Any, manifest: "Manifest", alias: str, label: str, failed: list[str]) -> bool:
+def simdb_ingest(db: Any, config: Any, manifest: "Manifest", alias: str) -> bool:
     """Insert one pulse into SimDB, overwriting any existing entry for `alias`. Returns success."""
     try:
         try:
@@ -1008,7 +1025,6 @@ def simdb_ingest(db: Any, config: Any, manifest: "Manifest", alias: str, label: 
         return True
     except Exception as exc:
         _print_over_progress(f"  SimDB ingest FAILED for {alias}: {exc}")
-        failed.append(label)
         return False
 
 
@@ -1038,8 +1054,14 @@ def run_migration(
         temp_var_name(cw_row) for _, cw_row in crosswalk.loc[crosswalk["status"] == "manifest"].iterrows()
     )
 
-    machine_rows = crosswalk.loc[crosswalk["imas_path"] == "summary/machine", "csv_column"]
-    machine_col = machine_rows.iloc[0] if len(machine_rows) else None
+    def first_csv_column(mask: Any) -> Any:
+        hits = crosswalk.loc[mask, "csv_column"]
+        return hits.iloc[0] if len(hits) else None
+
+    def _maps_summary_time(p: Any) -> bool:
+        return isinstance(p, str) and any(seg.strip().startswith("summary/time") for seg in p.split("&"))
+
+    machine_col = first_csv_column(crosswalk["imas_path"] == "summary/machine")
     if machine_col is None and crosswalk["_errors"].notna().any():
         raise ValueError("errors column is used but no row maps to 'summary/machine' to key the lookup")
     if machine_col is None and crosswalk["_dict_descs"].apply(bool).any():
@@ -1048,14 +1070,8 @@ def run_migration(
         raise ValueError("--simdb is set but no row maps to 'summary/machine' to label each entry")
 
     # Pulse-grouping columns: SHOT->summary/pulse keys the group; TIME->summary/time orders slices.
-    pulse_rows = crosswalk.loc[crosswalk["imas_path"] == "summary/pulse", "csv_column"]
-    pulse_col = pulse_rows.iloc[0] if len(pulse_rows) else None
-
-    def _maps_summary_time(p: Any) -> bool:
-        return isinstance(p, str) and any(seg.strip().startswith("summary/time") for seg in p.split("&"))
-
-    time_rows = crosswalk.loc[crosswalk["imas_path"].apply(_maps_summary_time), "csv_column"]
-    time_col = time_rows.iloc[0] if len(time_rows) else None
+    pulse_col = first_csv_column(crosswalk["imas_path"] == "summary/pulse")
+    time_col = first_csv_column(crosswalk["imas_path"].apply(_maps_summary_time))
     if not per_time_slice and pulse_col is None:
         raise ValueError("no row maps to 'summary/pulse' to group time-slices")
     if not per_time_slice and machine_col is None:
@@ -1063,17 +1079,8 @@ def run_migration(
     if not per_time_slice and time_col is None:
         print("WARNING: no row maps to 'summary/time' -- slices kept in CSV order")
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    done = 0
-    counters: dict[str, int] = {}  # per-machine entry index for the SimDB alias (per-time-slice mode)
-    ingested = 0
-    failed: list[str] = []
-    start = time.monotonic()
-    last_report = start
-
-    if not per_time_slice:
-        groups = list(data.groupby([machine_col, pulse_col], sort=False))
-        total = len(groups)
+    # Both modes yield (dir_name, machine, alias, progress_label, pulse_ids) for the shared writer below.
+    def pulse_units(groups: list) -> Any:
         for (machine, pulse), gdf in groups:
             if isinstance(pulse, float) and pulse.is_integer():
                 pulse = int(pulse)  # groupby key is float when the pulse column has any NaN elsewhere
@@ -1095,20 +1102,11 @@ def run_migration(
             if "temporary" in pulse_ids:
                 set_temporary_local_time(pulse_ids["temporary"], times)
 
-            temp_ids = pulse_ids.pop("temporary", None) if simdb_enabled else None
-            pulse_dir = write_pulse_dir(output_dir, f"{str(machine).lower()}_{pulse}", pulse_ids)
-            done += 1
+            dir_name = f"{str(machine).lower()}_{pulse}"
+            yield dir_name, str(machine), f"{dataset}/{machine}/{pulse}", pulse_key, pulse_ids
 
-            if simdb_enabled:
-                alias = f"{dataset}/{machine}/{pulse}"
-                variables = extract_variables(temp_ids) if temp_ids is not None else {}
-                manifest = make_manifest(pulse_dir, dataset, str(machine), alias, variables, temp_name_kind)
-                if simdb_ingest(db, config, manifest, alias, pulse_dir.name, failed):
-                    ingested += 1
-
-            last_report = report_progress(done, total, pulse_key, start, last_report)
-    else:  # --per-time-slice: one IDS per CSV row
-        total = len(data)
+    def row_units() -> Any:
+        counters: dict[str, int] = {}  # per-machine entry index for the SimDB alias
         for pulse_idx, data_row in data.iterrows():
             if data_row.isna().all():
                 continue
@@ -1116,21 +1114,39 @@ def run_migration(
             for ids in pulse_ids.values():
                 backfill_time(ids)
 
-            temp_ids = pulse_ids.pop("temporary", None) if simdb_enabled else None
-            pulse_dir = write_pulse_dir(output_dir, f"pulse_{pulse_idx:04d}", pulse_ids)
-            done += 1
+            machine = str(data_row[machine_col]) if machine_col else ""
+            index = counters.get(machine, 0)
+            counters[machine] = index + 1
+            dir_name = f"pulse_{pulse_idx:04d}"
+            yield dir_name, machine, f"{dataset}-{machine.lower()}-{index}", pulse_idx, pulse_ids
 
-            if simdb_enabled:
-                machine = str(data_row[machine_col])
-                index = counters.get(machine, 0)
-                counters[machine] = index + 1
-                alias = f"{dataset}-{machine.lower()}-{index}"
-                variables = extract_variables(temp_ids) if temp_ids is not None else {}
-                manifest = make_manifest(pulse_dir, dataset, machine, alias, variables, temp_name_kind)
-                if simdb_ingest(db, config, manifest, alias, f"pulse_{pulse_idx:04d}", failed):
-                    ingested += 1
+    if per_time_slice:  # one IDS set per CSV row
+        total, units = len(data), row_units()
+    else:
+        groups = list(data.groupby([machine_col, pulse_col], sort=False))
+        total, units = len(groups), pulse_units(groups)
 
-            last_report = report_progress(done, total, pulse_idx, start, last_report)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    done = 0
+    ingested = 0
+    failed: list[str] = []
+    start = time.monotonic()
+    last_report = start
+
+    for dir_name, machine, alias, progress_label, pulse_ids in units:
+        temp_ids = pulse_ids.pop("temporary", None) if simdb_enabled else None
+        pulse_dir = write_pulse_dir(output_dir, dir_name, pulse_ids)
+        done += 1
+
+        if simdb_enabled:
+            variables = extract_variables(temp_ids) if temp_ids is not None else {}
+            manifest = make_manifest(pulse_dir, dataset, machine, alias, variables, temp_name_kind)
+            if simdb_ingest(db, config, manifest, alias):
+                ingested += 1
+            else:
+                failed.append(dir_name)
+
+        last_report = report_progress(done, total, progress_label, start, last_report)
 
     report_summary("Processed", done, total, start, f" to {output_dir}")
     if simdb_enabled:
@@ -1147,7 +1163,9 @@ def run_migration(
 
 def main() -> None:
     """Run the CSV -> IDS migration pipeline."""
+    global VERBOSE
     args = parse_args()
+    VERBOSE = args.verbose
     mapping_path = ROOT / "resources" / "mappings" / args.mapping
     output_dir = ROOT / "resources" / "results" / args.experiment
     resolve_spec = load_resolve_spec(mapping_path)
@@ -1157,12 +1175,11 @@ def main() -> None:
     validate(crosswalk, data, factory)
     crosswalk = build_write_spec(crosswalk)
 
-    simdb_enabled = args.simdb
-    config = db = None
     if args.simdb and not SIMDB_AVAILABLE:
         print("WARNING: --simdb given but the 'simdb' package is not importable -- skipping ingestion")
-        simdb_enabled = False
-    elif simdb_enabled:
+    simdb_enabled = args.simdb and SIMDB_AVAILABLE
+    config = db = None
+    if simdb_enabled:
         config = Config()
         db = get_local_db(config)
 
