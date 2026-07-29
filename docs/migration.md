@@ -23,7 +23,7 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves written when `needs_source=True`; defaults to `("value", "source")` |
 | `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
 
-The spreadsheet describes the **mapping** (what to write and where).  Four further per-variable concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, conflict-resolution rules, and IMAS standard names.  See [The sidecar](#the-sidecar).
+The spreadsheet describes the **mapping** (what to write and where).  Further concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, conflict-resolution rules and IMAS standard names (all per-variable), plus a single whole-database description (source, citation, credits).  See [The sidecar](#the-sidecar).
 
 ### Missing values and no-data markers
 
@@ -203,7 +203,7 @@ A dict source is resolved per pulse against the pulse's machine name and written
 
 Some per-variable information is a property of the **data**, not of the mapping, and is sparse: only a handful of variables carry it, and it is structured (a list, or a value per machine) rather than a single scalar. A crosswalk column would cost a cell on every row and force that structure to be stringified. It lives instead in a YAML **sidecar** named `<mapping stem>.yaml`, e.g. `resources/mappings/2008_crosswalk.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no CLI flag is involved.
 
-The file has four optional top-level sections, each keyed by `csv_column`:
+The file has five optional top-level sections. Four are keyed by `csv_column`; `database` is the exception, a single whole-database description rather than one entry per variable:
 
 ```yaml
 resolve:                        # conflict rules for constants that vary across time-slices
@@ -225,6 +225,12 @@ errors:                         # per-machine error bars
 
 standard_names:                 # IMAS standard name for a manifest variable
   IGRADB: ion_grad_b_drift_direction
+
+database:                       # whole-database description -- see `database` below
+  name: "ITPA Global H-Mode Confinement Database"
+  version: "DB5.2.3"
+  paper: "G. Verdoolaege et al., \"...\", Nucl. Fusion 61 076006 (2021), https://doi.org/..."
+  maintainers: ["Geert Verdoolaege, Ghent University"]
 ```
 
 An entry naming a variable absent from the crosswalk warns at startup. A **missing sidecar file** also warns and applies nothing. An unrecognised section name raises.
@@ -289,6 +295,34 @@ standard_names:
 
 A variable absent from this section falls back to `csv_column` for its identifier name, and lands in `db_variable.*` under `--simdb`. Only `status=manifest` rows read this section; an entry against a mapped row is harmless but never applied.
 
+### `database`
+
+A free-text description of the source database as a whole -- not a per-variable entry like the other sections. Every field is optional:
+
+```yaml
+database:
+  name: "ITPA Global H-Mode Confinement Database"
+  version: "DB5.2.3"
+  definitions: "https://osf.io/drwcq/"                    # link to the variable-definitions document
+  paper: "The updated ITPA global H-mode confinement database: description and analysis\", Nucl. Fusion 61 076006 (2021), https://doi.org/10.1088/1741-4326/abdb91"
+  csv: ["https://osf.io/zhwa3/download"]                  # where the source data can be obtained
+  authors: ["Geert Verdoolaege", "Stanley Kaye"]
+  maintainers: ["Geert Verdoolaege, Ghent University", "Knud Tomson, IPP Garching"]
+  previous_maintainers: []
+```
+
+| Field                  | Type            | Meaning |
+| ----------------------- | --------------- | ------- |
+| `name`                  | str             | Name of the source database |
+| `version`               | str             | Version/release identifier |
+| `definitions`           | str             | Link to the original variable-definitions document |
+| `paper`                 | str             | Citation for the associated paper (include a DOI/URL where available) |
+| `csv`                   | list of str     | Where the source data can be obtained (a stable external URL) |
+| `authors`               | list of str     | Authors/compilers credited for the database |
+| `maintainers`           | list of str     | Current maintainers |
+| `previous_maintainers`  | list of str     | Prior maintainers, if the database has changed hands |
+
+`format_database_comment()` renders every present field into a single ` -- `-joined string, written verbatim to `ids_properties.comment` on **every** top-level IDS created for **every** pulse (see `new_ids`). An absent or empty `database` section (or one where every field is blank/empty) renders to `None` and no comment is written -- this is expected while fields are still placeholders pending manual completion.
 ---
 
 ## Temporary IDSs
