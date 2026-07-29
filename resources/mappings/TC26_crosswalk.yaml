@@ -1,5 +1,23 @@
-sentinels:
-  FRACNMIN: [-1.0e-08]
+database:
+  name: "ITPA metal-wall L-H transition threshold power database (ITPA task TC-26)"
+  version: ""
+  definitions: "https://doi.org/10.1088/1741-4326/ae39f2 (supplementary data, iopscience.iop.org)"
+  paper: "Empirical scaling of the L-H threshold power for metal wall tokamaks using a multi-device database\", Nucl. Fusion 66 036016 (2026), https://doi.org/10.1088/1741-4326/ae39f2"
+  csv:
+    - "https://doi.org/10.1088/1741-4326/ae39f2 (supplementary data, iopscience.iop.org)"  
+  authors:
+    - "Ephrem Delabie"
+    - "Gregor Birkenmeier"
+    - "Marco Cavedon
+    - "Jerry W. Hughes"
+    - "Costanza F. Maggi"
+    - "Ulrike Plank"
+    - "Francois Ryter"
+    - "Emilia R. Solano"
+    - "ASDEX Upgrade Team"
+    - "JET Contributors"
+  maintainers: []  
+  previous_maintainers: []
 
 standard_names:
   SPLASMA: area_of_separatrix

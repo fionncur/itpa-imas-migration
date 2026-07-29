@@ -184,6 +184,61 @@ def check_standard_names(value: Any, name: str) -> str:
     return value.strip()
 
 
+DATABASE_STR_FIELDS = ("name", "version", "definitions", "paper")
+DATABASE_LIST_FIELDS = ("csv", "authors", "maintainers", "previous_maintainers")
+
+
+def check_database(value: Any) -> dict:
+    """Validate the sidecar's `database` entry: a free-text description of the source database.
+
+    String fields: name, version, definitions (link to the variable-definitions sheet), paper
+    (citation). List-of-string fields: csv (source location), authors, maintainers,
+    previous_maintainers. Every field is optional. See `format_database_comment`.
+    """
+    if not isinstance(value, dict):
+        raise ValueError(f"database: must be a mapping of description fields; got {value!r}")
+    for key, entry in value.items():
+        if key in DATABASE_LIST_FIELDS:
+            if not isinstance(entry, (list, tuple)) or not all(isinstance(e, str) for e in entry):
+                raise ValueError(f"database: {key!r} must be a list of strings; got {entry!r}")
+        elif key in DATABASE_STR_FIELDS:
+            if not isinstance(entry, str):
+                raise ValueError(f"database: {key!r} must be a string; got {entry!r}")
+        else:
+            raise ValueError(
+                f"database: unknown field {key!r}; expected one of {DATABASE_STR_FIELDS + DATABASE_LIST_FIELDS}"
+            )
+    return value
+
+
+def format_database_comment(database: dict) -> str | None:
+    """Render the sidecar's `database` entry into one string for `ids_properties.comment`.
+
+    None if the section is absent or empty, so no comment is written.
+    """
+    if not database:
+        return None
+    parts = []
+    header = database.get("name", "")
+    if header and database.get("version"):
+        header += f" ({database['version']})"
+    if header:
+        parts.append(header)
+    if database.get("definitions"):
+        parts.append(f"Variable definitions: {database['definitions']}")
+    if database.get("paper"):
+        parts.append(f"Reference: {database['paper']}")
+    if database.get("csv"):
+        parts.append(f"Source data: {', '.join(database['csv'])}")
+    if database.get("authors"):
+        parts.append(f"Authors: {', '.join(database['authors'])}")
+    if database.get("maintainers"):
+        parts.append(f"Maintainers: {', '.join(database['maintainers'])}")
+    if database.get("previous_maintainers"):
+        parts.append(f"Previous maintainers: {', '.join(database['previous_maintainers'])}")
+    return " -- ".join(parts) if parts else None
+
+
 def _try_parse_dict(x: Any) -> Any:
     """If x is a string that looks like a dict literal, parse and return the dict; else return x."""
     if isinstance(x, str) and x.strip().startswith("{"):
@@ -216,10 +271,16 @@ def error_bar(spec: Any, value: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def new_ids(factory: imas.IDSFactory, name: str) -> IDS:
-    """Create a fresh top-level IDS with homogeneous time mode set."""
+def new_ids(factory: imas.IDSFactory, name: str, comment: str | None = None) -> IDS:
+    """Create a fresh top-level IDS with homogeneous time mode set and an optional source comment.
+
+    `comment` (from the sidecar's `database` section, see `format_database_comment`) is written
+    verbatim to `ids_properties.comment` when given.
+    """
     ids = factory.new(name)
     ids.ids_properties.homogeneous_time = imas.ids_defs.IDS_TIME_MODE_HOMOGENEOUS
+    if comment:
+        ids.ids_properties.comment = comment
     return ids
 
 
@@ -565,7 +626,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-SIDECAR_SECTIONS = ("resolve", "sentinels", "errors", "standard_names")
+SIDECAR_SECTIONS = ("resolve", "sentinels", "errors", "standard_names", "database")
 
 
 def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
@@ -579,6 +640,8 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
       sentinels      : no-data placeholder values -- see `check_sentinels`
       errors         : per-machine error bars -- see `check_errors`
       standard_names : IMAS standard name for a manifest variable -- see `check_standard_names`
+      database       : free-text description of the source database, written into every pulse's
+                        `ids_properties.comment` -- see `check_database`/`format_database_comment`
 
     Every section is optional, however a missing file gives warning.
     """
@@ -610,6 +673,7 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
     sidecar["standard_names"] = {
         name: check_standard_names(value, name) for name, value in sidecar["standard_names"].items()
     }
+    sidecar["database"] = check_database(sidecar["database"])
     return sidecar
 
 
@@ -749,6 +813,8 @@ def _check_sidecar_names(df: pd.DataFrame, sidecar: dict[str, dict]) -> None:
     """Sidecar entries should name a crosswalk variable, else a rename has orphaned them."""
     known = df.attrs.get("all_csv_columns", set(df["csv_column"].astype(str)))
     for section, entries in sidecar.items():
+        if section == "database":
+            continue  # a whole-database description, not keyed by csv_column
         unknown = sorted(set(entries) - known)
         if unknown:
             print(
@@ -869,6 +935,7 @@ def process_pulse(
     *,
     pulse_ids: dict[str, IDS] | None = None,
     context: WriteContext = WriteContext(),
+    database_comment: str | None = None,
 ) -> dict[str, IDS]:
     """Write one data row (= one time-slice) into the per-root IDS dict for a pulse.
 
@@ -876,6 +943,9 @@ def process_pulse(
     written into the pulse IDS at `context.slice_index`. Pass a shared `pulse_ids` and increasing
     `context.slice_index` to accumulate a pulse's time-slices into one IDS set; the default
     (fresh dict, single slice) reproduces the original one-IDS-per-row behaviour.
+
+    `database_comment` (see `format_database_comment`) is stamped onto every newly created root's
+    `ids_properties.comment`.
     """
     if pulse_ids is None:
         pulse_ids = {}
@@ -1074,6 +1144,7 @@ def run_migration(
     db: Any = None,
     per_time_slice: bool = True,
     resolve_spec: dict[str, dict] | None = None,
+    database_comment: str | None = None,
 ) -> None:
     """Build and write each pulse to disk immediately, without accumulating in memory.
 
@@ -1083,6 +1154,9 @@ def run_migration(
     When `simdb_enabled`, the in-memory `temporary` IDS is diverted into the SimDB manifest as
     `variables` metadata instead of being written to disk, and one SimDB entry is ingested per
     pulse. The `summary` IDS is always written to disk (SimDB catalogues it by reference).
+
+    `database_comment` (see `format_database_comment`) is stamped onto every root's
+    `ids_properties.comment` in every pulse.
     """
     # name -> "standard_name"/"db_variable", used to split SimDB manifest variables (see make_manifest).
     temp_name_kind = dict(
@@ -1131,7 +1205,15 @@ def run_migration(
             pulse_ids: dict[str, IDS] = {}
             for ti, row in enumerate(rows):
                 context = WriteContext(slice_index=ti, n_slices=n, pulse=pulse_key, resolve_spec=resolve_spec)
-                process_pulse(row, crosswalk, factory, machine_col, pulse_ids=pulse_ids, context=context)
+                process_pulse(
+                    row,
+                    crosswalk,
+                    factory,
+                    machine_col,
+                    pulse_ids=pulse_ids,
+                    context=context,
+                    database_comment=database_comment,
+                )
             for ids in pulse_ids.values():
                 backfill_time(ids, times)
             if "temporary" in pulse_ids:
@@ -1145,7 +1227,7 @@ def run_migration(
         for pulse_idx, data_row in data.iterrows():
             if data_row.isna().all():
                 continue
-            pulse_ids = process_pulse(data_row, crosswalk, factory, machine_col)
+            pulse_ids = process_pulse(data_row, crosswalk, factory, machine_col, database_comment=database_comment)
             for ids in pulse_ids.values():
                 backfill_time(ids)
 
@@ -1229,6 +1311,7 @@ def main() -> None:
         db=db,
         per_time_slice=args.per_time_slice,
         resolve_spec=sidecar["resolve"],
+        database_comment=format_database_comment(sidecar["database"]),
     )
 
 
