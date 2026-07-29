@@ -14,7 +14,6 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `imas_path`          | str                  | Target path inside the IDS (see [Path notation](#path-notation-and-indexing)) |
 | `csv_description`    | str                  | Description of the source variable from the original database. |
 | `imas_description`   | str                  | Description of the IDS target field (automatically populated by DD) |
-| `imas_standard_name` | str                  | IMAS standard name for the variable; used as `identifier/name` for `manifest` rows (falls back to `csv_column` when blank) |
 | `kind`               | str                  | `constant`, `dynamic`, or `static` (automatically populated by DD) |
 | `status`             | str                  | `mapped`, `mapped_caveat`, `manifest`, `derived` or `discard` (see [Status values](#status-values)) |
 | `notes`              | str                  | Free-text notes, caveats, warnings, etc. |
@@ -24,7 +23,7 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves written when `needs_source=True`; defaults to `("value", "source")` |
 | `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
 
-The spreadsheet describes the **mapping** (what to write and where).  Three further per-variable concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, and conflict-resolution rules.  See [The sidecar](#the-sidecar).
+The spreadsheet describes the **mapping** (what to write and where).  Four further per-variable concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, conflict-resolution rules, and IMAS standard names.  See [The sidecar](#the-sidecar).
 
 ### Missing values and no-data markers
 
@@ -204,7 +203,7 @@ A dict source is resolved per pulse against the pulse's machine name and written
 
 Some per-variable information is a property of the **data**, not of the mapping, and is sparse: only a handful of variables carry it, and it is structured (a list, or a value per machine) rather than a single scalar. A crosswalk column would cost a cell on every row and force that structure to be stringified. It lives instead in a YAML **sidecar** named `<mapping stem>.yaml`, e.g. `resources/mappings/2008_crosswalk.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no CLI flag is involved.
 
-The file has three optional top-level sections, each keyed by `csv_column`:
+The file has four optional top-level sections, each keyed by `csv_column`:
 
 ```yaml
 resolve:                        # conflict rules for constants that vary across time-slices
@@ -223,6 +222,9 @@ errors:                         # per-machine error bars
     JET: 0.05
     TFTR: {abs: 300000}
     D3D: [0.10, 0.20]
+
+standard_names:                 # IMAS standard name for a manifest variable
+  IGRADB: ion_grad_b_drift_direction
 ```
 
 An entry naming a variable absent from the crosswalk warns at startup. A **missing sidecar file** also warns and applies nothing. An unrecognised section name raises.
@@ -276,6 +278,17 @@ Relative and range bars are *relative*, so the absolute bar tracks the actual da
 
 Errors that cannot be expressed in these three forms are left as free-text `notes` rather than encoded: compound (`±15% abs + ±2% rel`), value-conditional (phase-dependent), formula-dependent (`±0.05/bp`), or unquantified.
 
+### `standard_names`
+
+The IMAS standard name for a `status=manifest` variable, used as its `identifier/name` in the `temporary` IDS instead of the raw `csv_column` (see [Temporary IDSs](#temporary-idss)), and to route it into `metadata.standard_name.*` rather than `metadata.db_variable.*` under `--simdb` (see [SimDB ingestion](#simdb-ingestion---simdb)).
+
+```yaml
+standard_names:
+  SPLASMA: area_of_separatrix
+```
+
+A variable absent from this section falls back to `csv_column` for its identifier name, and lands in `db_variable.*` under `--simdb`. Only `status=manifest` rows read this section; an entry against a mapped row is harmless but never applied.
+
 ---
 
 ## Temporary IDSs
@@ -301,13 +314,13 @@ The `(:)` suffix assigns a **stable index**, keyed by the segment name before `(
 As with physics-IDS rows, both the value and the descriptor strings (identifier name/description) are written directly into the pulse:
 
 ```
-constant_float0d(n)/value                  ← transformed CSV value
-constant_float0d(n)/identifier/name        ← imas_standard_name (if set), else csv_column
-constant_float0d(n)/identifier/description ← csv_description (if present)
+constant_float0d(n)/value                  <- transformed CSV value
+constant_float0d(n)/identifier/name        <- standard_names sidecar entry (if set), else csv_column
+constant_float0d(n)/identifier/description <- csv_description (if present)
 
-dynamic_float1d(n)/value/data              ← transformed CSV value (one element per time-slice)
-dynamic_float1d(n)/value/time              ← pulse's time vector (set after all slices are processed)
-dynamic_float1d(n)/identifier/name         ← imas_standard_name (if set), else csv_column
+dynamic_float1d(n)/value/data              <- transformed CSV value (one element per time-slice)
+dynamic_float1d(n)/value/time              <- pulse's time vector (set after all slices are processed)
+dynamic_float1d(n)/identifier/name         <- standard_names sidecar entry (if set), else csv_column
 ```
 
 The `imas_path` column is ignored for manifest rows; the entire path is derived from `csv_dtype`.  Manifest rows are otherwise processed identically to physics-IDS rows (same transforms, same value/descriptor split).
@@ -477,10 +490,10 @@ Each entry's manifest carries:
 | --------------------------------------- | ------ |
 | `alias`                                 | **default mode:** `{dataset}/{machine}/{pulse}`; **`--per-time-slice` mode:** `{dataset}-{machine}-{index}`, where `dataset` is the `--experiment` value and `index` is a per-machine counter |
 | `metadata.dataset` / `metadata.machine` | the experiment label and the pulse's `summary/machine` value |
-| `metadata.standard_name.*`              | manifest quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has an `imas_standard_name`, keyed by that standard name |
-| `metadata.db_variable.*`                | the same, for manifest quantities with no `imas_standard_name`, keyed by `csv_column` instead |
+| `metadata.standard_name.*`              | manifest quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has a sidecar [`standard_names`](#standard_names) entry, keyed by that standard name |
+| `metadata.db_variable.*`                | the same, for manifest quantities with no `standard_names` entry, keyed by `csv_column` instead |
 | `outputs.uri`                           | `imas:hdf5?path=<pulse_dir>#summary` (a **reference** to the on-disk summary IDS) |
 
-Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a set `imas_standard_name` sends it to `standard_name.<name>`; a blank one falls back to `db_variable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet (e.g. `simdb simulation query standard_name.loss_power=...` vs `db_variable.SELEC2007=...`).
+Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a sidecar `standard_names` entry sends it to `standard_name.<name>`; a blank one falls back to `db_variable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet (e.g. `simdb simulation query standard_name.loss_power=...` vs `db_variable.SELEC2007=...`).
 
 SimDB is a metadata catalogue: it stores the manifest plus a checksummed *reference* to the `summary` IDS, not its array data.  The `summary` IDS is therefore always written to HDF5, with or without `--simdb`; only the `temporary` IDS write is suppressed when ingesting.  A `summary/machine` mapping row is required; the script raises at load if `--simdb` is used without one.

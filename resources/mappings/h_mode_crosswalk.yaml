@@ -10,30 +10,10 @@ sentinels:
   ICANTEN: ["UNKNOWN"]
   NESEP: [0]
   NESOL: [0, "0"]
-  ELMMAX: [0] 
-  ELMDUR: [0] 
-  ELMINT: [0] 
-  # OLTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825 | suspected 52 (x241): extremity (52 vs median 1.096 +/- 10*IQR); machine-exclusive: JET x241 | suspected 51 (x120): extremity (51 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 53 (x120): extremity (53 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x120 | suspected 54 (x96): extremity (54 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x96 | suspected 48 (x90): extremity (48 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x90 | suspected 50 (x79): extremity (50 vs median 1.101 +/- 10*IQR); machine-exclusive: JET x79
-  # LHTIME: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825
-  # FUELRATE: []  # unconfirmed -- suspected 0 (x1537): global min
-  # DELTA: []  # unconfirmed -- suspected 0 (x3213): global min; machine-exclusive: ASDEX x1470, TEXTOR x1435, PDX x143, TFTR x104, TUMAN3M x49, T10 x12
-  # DELTAL: []  # unconfirmed -- suspected 0 (x3213): global min; machine-exclusive: ASDEX x1470, TEXTOR x1435, PDX x143, TFTR x104, TUMAN3M x49, T10 x12
-  # DALFMP: []  # unconfirmed -- suspected 0.08057 (x24): magnitude 14.83 decades off median; machine-exclusive: PBXM x24 | suspected 0.08301 (x22): magnitude 14.81 decades off median; machine-exclusive: PBXM x22 | suspected 0.08545 (x20): magnitude 14.8 decades off median; machine-exclusive: PBXM x20 | suspected 0.07813 (x18): magnitude 14.84 decades off median; machine-exclusive: PBXM x18 | suspected 0.09033 (x17): magnitude 14.77 decades off median; machine-exclusive: PBXM x17 | suspected 0.07568 (x16): magnitude 14.85 decades off median; machine-exclusive: PBXM x16 | suspected 0.0415 (x15): magnitude 15.11 decades off median; machine-exclusive: PBXM x15 | suspected 0.03662 (x15): magnitude 15.17 decades off median; machine-exclusive: PBXM x15
-  # DALFDV: []  # unconfirmed -- suspected -0.002441 (x63): magnitude 18.44 decades off median; machine-exclusive: PBXM x63 | suspected 0.0025 (x49): magnitude 18.42 decades off median; machine-exclusive: NSTX x49 | suspected -0.004883 (x37): magnitude 18.13 decades off median; machine-exclusive: PBXM x37 | suspected 0.004883 (x27): magnitude 18.12 decades off median; machine-exclusive: PBXM x27 | suspected 0.007324 (x26): magnitude 17.95 decades off median; machine-exclusive: PBXM x26 | suspected -0.007324 (x26): magnitude 17.95 decades off median; machine-exclusive: PBXM x26 | suspected 0.009766 (x24): magnitude 17.82 decades off median; machine-exclusive: PBXM x24 | suspected 0.01221 (x16): magnitude 17.72 decades off median; machine-exclusive: PBXM x16 | suspected 0.002441 (x15): magnitude 18.42 decades off median; machine-exclusive: PBXM x15
-  # BEILI2: []  # unconfirmed -- suspected 0 (x825): global min; machine-exclusive: JET x825
-  # PRAD: []  # unconfirmed -- suspected 0 (x690): global min; machine-exclusive: ASDEX x689, JET x1
-  # ENBI: []  # unconfirmed -- suspected 0 (x2847): global min; machine-exclusive: JET x1600, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
-  # PINJ: []  # unconfirmed -- suspected 0 (x3134): global min; machine-exclusive: JET x1699, ASDEX x630, JFT2M x265, AUG x139, TEXTOR x123, CMOD x87, TUMAN3M x49, D3D x44, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x4, TFTR x4
-  # PINJ2: []  # unconfirmed -- suspected 0 (x9619): global min
-  # PNBI: []  # unconfirmed -- suspected 0 (x2838): global min; machine-exclusive: JET x1591, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
-  # PFLOSS: []  # unconfirmed -- suspected 0 (x3103): global min; machine-exclusive: JET x1600, ASDEX x630, TEXTOR x290, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, AUG x43, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x4, JT60U x1
-  # PICRHC: []  # unconfirmed -- suspected 0 (x10894): global min; machine-exclusive: JET x4689, AUG x1844, ASDEX x1470, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TEXTOR x110, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
-  # PICRH: []  # unconfirmed -- suspected 0 (x10894): global min; machine-exclusive: JET x4689, AUG x1844, ASDEX x1470, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TEXTOR x110, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
-  # WFFORM: []  # unconfirmed -- suspected 0 (x2852): global min; machine-exclusive: JET x1607, ASDEX x630, JFT2M x265, CMOD x87, TUMAN3M x49, D3D x44, COMPASS x43, AUG x41, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
-  # WFANI: []  # unconfirmed -- suspected 0 (x2859): global min; machine-exclusive: JET x1588, ASDEX x630, JFT2M x265, CMOD x87, AUG x67, TUMAN3M x49, D3D x44, COMPASS x43, TEXTOR x35, TCV x21, TDEV x14, T10 x12, START x4
-  # WFICRH: []  # unconfirmed -- suspected 0 (x12405): global min; machine-exclusive: JET x4875, AUG x1844, ASDEX x1470, TEXTOR x1435, JFT2M x795, D3D x646, JT60U x387, PBXM x264, NSTX x247, PDX x143, TFTR x104, TUMAN3M x49, MAST x47, COMPASS x43, TCV x21, TDEV x14, T10 x12, START x9
-  # WFICFORM: []  # unconfirmed -- suspected 0 (x10928): global min
-  # SPIN: []  # unconfirmed -- suspected 0.9429 (x1147): extremity (0.9429 vs median 0.523 +/- 10*IQR); machine-exclusive: TEXTOR x1147 | suspected -0.9429 (x79): global min; machine-exclusive: TEXTOR x79
+  ELMMAX: [0]
+  ELMDUR: [0]
+  ELMINT: [0]
+  DALFDV: [-0.002441, -0.004883, -0.007324]  
 
 errors:
   ELMFREQ:
