@@ -55,7 +55,6 @@ CROSSWALK_COLUMNS = [
     "notes",
     "transform",
     "transform_args",
-    "needs_source",
     "source_fields",
     "source",
 ]
@@ -116,7 +115,7 @@ NORM_COL = get_column_letter(NORM_COL_IDX)
 
 
 def _formula_norm(row: int) -> str:
-    """Path normalisation in the hidden helper column T,
+    """Path normalisation in the hidden helper column,
 
     1. Take only the first &-separated path.
     2. Strip parenthetical index suffixes.
@@ -137,9 +136,16 @@ def _formula_imas_unit(row: int) -> str:
     )
 
 
+def _formula_target(row: int) -> str:
+    """DD identifier the dtype/kind lookups describe: the node's `value` sub-field when the DD has
+    one, else the node itself."""
+    n = f"${NORM_COL}{row}"
+    v = f'{n}&"/value"'
+    return f"IF(ISNUMBER(MATCH({v},DD[identifier],0)),{v},{n})"
+
+
 def _formula_imas_dtype(row: int) -> str:
-    n, ns = f"${NORM_COL}{row}", f"$O{row}"
-    return f'=IFERROR(INDEX(DD[data_type],MATCH(IF({ns}=TRUE,{n}&"/value",{n}),' f'DD[identifier],0)),"")'
+    return f'=IFERROR(INDEX(DD[data_type],MATCH({_formula_target(row)},DD[identifier],0)),"")'
 
 
 def _formula_imas_description(row: int) -> str:
@@ -148,8 +154,7 @@ def _formula_imas_description(row: int) -> str:
 
 
 def _formula_kind(row: int) -> str:
-    n, ns = f"${NORM_COL}{row}", f"$O{row}"
-    return f'=IFERROR(INDEX(DD[kind],MATCH(IF({ns},{n}&"/value",{n}),' f'DD[identifier],0)),"")'
+    return f'=IFERROR(INDEX(DD[kind],MATCH({_formula_target(row)},DD[identifier],0)),"")'
 
 
 FORMULA_BUILDERS = {
@@ -198,14 +203,14 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
     ws.title = "crosswalk"
 
     col_map = {name: get_column_letter(i + 1) for i, name in enumerate(CROSSWALK_COLUMNS)}
-    status_col_letter = col_map["status"]  # K
-    csv_col_letter = col_map["csv_column"]  # A
+    status_col_letter = col_map["status"]
+    csv_col_letter = col_map["csv_column"]
 
     # Header row (no formatting)
     for col_idx, col_name in enumerate(CROSSWALK_COLUMNS, start=1):
         ws.cell(row=1, column=col_idx, value=col_name)
 
-    # Variable rows: normalised-path helper (col T, hidden) + visible formula columns
+    # Variable rows: normalised-path helper (hidden) + visible formula columns
     for row in range(2, num_rows + 2):
         ws.cell(row=row, column=NORM_COL_IDX, value=_formula_norm(row))
         for col_name, builder in FORMULA_BUILDERS.items():
@@ -241,7 +246,6 @@ def _build_crosswalk_sheet(wb: openpyxl.Workbook, num_rows: int) -> None:
         "notes": 36,
         "transform": 12,
         "transform_args": 36,
-        "needs_source": 14,
         "source_fields": 22,
         "source": 22,
     }
@@ -277,24 +281,20 @@ def _sort_by_status(df: pd.DataFrame) -> pd.DataFrame:
     return df.iloc[key.sort_values(kind="stable").index].reset_index(drop=True)
 
 
-def _coerce(col_name: str, val) -> object:
-    if not isinstance(val, str) and pd.isna(val):
-        return None
-    if col_name == "needs_source":
-        if isinstance(val, str):
-            return True if val.strip().upper() == "TRUE" else None
-        return True if val else None
-    return val
+def _coerce(val) -> object:
+    return None if not isinstance(val, str) and pd.isna(val) else val
 
 
 def _copy_manual_data(ws, df: pd.DataFrame) -> None:
-    """Write manual columns from an already-loaded crosswalk dataframe into ws."""
+    """Write manual columns from an already-loaded crosswalk dataframe into ws.
+
+    Columns no longer in CROSSWALK_COLUMNS are dropped.
+    """
     col_idx = {name: CROSSWALK_COLUMNS.index(name) + 1 for name in MANUAL_COLS if name in df.columns}
 
     for df_row_idx, df_row in enumerate(df.itertuples(index=False), start=2):
         for col_name, col_num in col_idx.items():
-            val = _coerce(col_name, getattr(df_row, col_name, None))
-            ws.cell(row=df_row_idx, column=col_num, value=val)
+            ws.cell(row=df_row_idx, column=col_num, value=_coerce(getattr(df_row, col_name, None)))
 
 
 def main() -> None:

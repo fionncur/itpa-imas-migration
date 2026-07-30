@@ -682,9 +682,6 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     df = pd.read_excel(mapping_path)
     all_csv_columns = set(df["csv_column"].dropna().astype(str))
 
-    # Convert needs_source to boolean.
-    df["needs_source"] = df["needs_source"].fillna(False).astype(bool)
-
     # Parse source cells that are dict literals (machine-specific provenance).
     df["source"] = df["source"].map(_try_parse_dict)
 
@@ -694,13 +691,11 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     )
     df = df[keep_mask]
 
-    # Parse the optional source_fields column into (value_leaf, source_leaf) pairs.
-    # Blank/NaN or non-needs_source rows -> ("value", "source").
+    # Parse the optional source_fields column into (value_leaf, source_leaf) pairs. Blank/NaN
+    # rows get the ("value", "source") default here and are then resolved against the Data
+    # Dictionary by `resolve_value_leaves`, which decides whether they take a pair write at all.
     if "source_fields" in df.columns:
-        pairs = [
-            parse_source_pair(sf, col) if ns else ("value", "source")
-            for sf, col, ns in zip(df["source_fields"], df["csv_column"], df["needs_source"])
-        ]
+        pairs = [parse_source_pair(sf, col) for sf, col in zip(df["source_fields"], df["csv_column"])]
     else:
         pairs = [("value", "source")] * len(df)
     df["_source_pair"] = pd.Series(pairs, index=df.index, dtype=object)
@@ -726,30 +721,71 @@ def load_dataset(data_path: pathlib.Path) -> pd.DataFrame:
     return data.map(lambda x: x.strip() if isinstance(x, str) else x)
 
 
+def _dd_node_meta(path: str, factory: imas.IDSFactory, ids_cache: dict[str, Any]) -> Any:
+    """DD metadata for an imas_path (indexes stripped), or None when the path is not in the DD."""
+    segments = [parse_seg(seg)[0] for seg in path.strip().split("/")]
+    root, node_path = segments[0], "/".join(segments[1:])
+    try:
+        if root not in ids_cache:
+            ids_cache[root] = factory.new(root)
+        return ids_cache[root].metadata[node_path]
+    except (KeyError, imas.exception.IDSNameError):
+        return None
+
+
+def _has_leaf(node_meta: Any, leaf: str) -> bool:
+    """True when the DD node has `leaf` as a sub-field."""
+    try:
+        node_meta[leaf]
+    except KeyError:
+        return False
+    return True
+
+
+def resolve_value_leaves(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
+    """Derive each row's value leaf from the Data Dictionary.
+
+    A `source_fields` cell overrides both leaf names and is taken as given (`_check_dd_paths` then
+    verifies the named leaves exist). Rows with no usable imas_path -- `manifest` rows, whose target
+    is a temporary bucket resolved in `build_write_spec` -- take no pair write.
+    """
+    ids_cache: dict[str, Any] = {}
+    pairs, needs = [], []
+    for _, row in df.iterrows():
+        pair = row["_source_pair"]
+        explicit = isinstance(row.get("source_fields"), str) and row["source_fields"].strip() != ""
+        if not explicit:
+            path = row["imas_path"]
+            if row["status"] == "manifest" or not isinstance(path, str):
+                pair = ("", pair[1])
+            else:
+                node_meta = _dd_node_meta(path.split("&")[0], factory, ids_cache)
+                # An unknown path is reported by _check_dd_paths; assume the pair write it names.
+                pair = (pair[0] if node_meta is None or _has_leaf(node_meta, pair[0]) else "", pair[1])
+        pairs.append(pair)
+        needs.append(bool(pair[0]))
+    df["_source_pair"] = pd.Series(pairs, index=df.index, dtype=object)
+    df["_needs_source"] = pd.Series(needs, index=df.index, dtype=bool)
+
+
 def _check_dd_paths(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
-    """Every imas_path must exist in the DD; needs_source rows need both leaves."""
+    """Every imas_path must exist in the DD; pair-write rows need both leaves."""
     ids_cache: dict[str, Any] = {}
     bad: list[str] = []
     for _, row in df[df["status"] != "manifest"].iterrows():
         if not isinstance(row["imas_path"], str):
             continue
         for path in row["imas_path"].split("&"):
-            segments = [parse_seg(seg)[0] for seg in path.strip().split("/")]
-            root, node_path = segments[0], "/".join(segments[1:])
-            try:
-                if root not in ids_cache:
-                    ids_cache[root] = factory.new(root)
-                node_meta = ids_cache[root].metadata[node_path]
-            except (KeyError, imas.exception.IDSNameError):
+            node_meta = _dd_node_meta(path, factory, ids_cache)
+            if node_meta is None:
                 bad.append(f"row {row.name} ('{row['csv_column']}'): '{path}' not in DD")
                 continue
-            if row["needs_source"]:
+            if row["_needs_source"]:
                 for leaf in row["_source_pair"]:
-                    try:
-                        node_meta[leaf]
-                    except KeyError:
+                    if not _has_leaf(node_meta, leaf):
                         bad.append(
-                            f"row {row.name} ('{row['csv_column']}'): '{path}' has no '{leaf}' sub-field required by needs_source"
+                            f"row {row.name} ('{row['csv_column']}'): '{path}' has no '{leaf}' "
+                            f"sub-field required by its source_fields pair"
                         )
     if bad:
         raise ValueError("imas_path validation failed:\n  " + "\n  ".join(bad))
@@ -905,7 +941,7 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
             if not isinstance(imas_path, str):
                 raise ValueError(f"Row {cw_row.name}: imas_path is missing")
             paths = imas_path.split("&") if "&" in imas_path else [imas_path]
-            if cw_row["needs_source"]:
+            if cw_row["_needs_source"]:
                 source = cw_row["source"]
                 has_source = isinstance(source, (str, dict)) or (is_number(source) and pd.notna(source))
                 descriptors = [(cw_row["_source_pair"][1].split("/"), source)] if has_source else []
@@ -1289,6 +1325,7 @@ def main() -> None:
     crosswalk = load_crosswalk(mapping_path, sidecar)
     data = load_dataset(ROOT / "resources" / "input" / args.dataset)
     factory = imas.IDSFactory(version=args.dd_version)
+    resolve_value_leaves(crosswalk, factory)
     validate(crosswalk, data, factory, sidecar)
     crosswalk = build_write_spec(crosswalk)
 
