@@ -160,6 +160,9 @@ def check_sentinels(values: Any, name: str) -> list:
 
     A source value exactly equal to any entry is treated as missing, so the target leaf falls back to
     the IMAS empty. Strings are stripped to match load_dataset's stripping.
+
+    The reserved name `global` holds placeholders applied to every variable (e.g. one dataset-wide
+    fill code), on top of whatever that variable's own entry lists -- see `load_sidecar`.
     """
     if not isinstance(values, (list, tuple)):
         raise ValueError(f"sentinels: {name!r} must be a list, e.g. [-9.999e-09, 'N/A']; got {values!r}")
@@ -637,7 +640,8 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
 
       resolve        : conflict-resolution strategy for a constant that disagrees across a pulse's
                         time-slices -- see `_resolve_conflict`
-      sentinels      : no-data placeholder values -- see `check_sentinels`
+      sentinels      : no-data placeholder values, plus an optional `global` entry applied to every
+                        variable -- see `check_sentinels`
       errors         : per-machine error bars -- see `check_errors`
       standard_names : IMAS standard name for a manifest variable -- see `check_standard_names`
       database       : free-text description of the source database, written into every pulse's
@@ -669,7 +673,9 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
         if strategy == "avoid" and not entry.get("avoid"):
             raise ValueError(f"{spec_path}: {name!r} uses strategy 'avoid' but has no 'avoid' list")
     sidecar["errors"] = {name: check_errors(spec, name) for name, spec in sidecar["errors"].items()}
+    global_sentinels = check_sentinels(sidecar["sentinels"].pop("global", []), "global")
     sidecar["sentinels"] = {name: check_sentinels(values, name) for name, values in sidecar["sentinels"].items()}
+    sidecar["sentinels_global"] = global_sentinels
     sidecar["standard_names"] = {
         name: check_standard_names(value, name) for name, value in sidecar["standard_names"].items()
     }
@@ -704,7 +710,8 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     errors = [sidecar["errors"].get(str(name)) for name in df["csv_column"]]
     df["_errors"] = pd.Series(errors, index=df.index, dtype=object)
 
-    sentinels = [sidecar["sentinels"].get(str(name)) for name in df["csv_column"]]
+    global_sentinels = sidecar.get("sentinels_global", [])
+    sentinels = [global_sentinels + sidecar["sentinels"].get(str(name), []) for name in df["csv_column"]]
     df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
 
     standard_names = [sidecar["standard_names"].get(str(name)) for name in df["csv_column"]]
