@@ -9,17 +9,10 @@ database:
   previous_maintainers: []
 
 sentinels:
-  global: [-9999999]
-  HYBRID: ["UNKNOWN"]
-  ITB: ["UNKNOWN"]
+  global: [-9999999, "UNKNOWN", "???????"]
   ITBTYPE: ["NA"]
-  ELMTYPE: ["UNKNOWN", "???????"]
   DIVMAT: ["NONE"]
   LIMMAT: ["NONE"]
-  ECHMODE: ["UNKNOWN"]
-  ECHLOC: ["UNKNOWN"]
-  ICSCHEME: ["UNKNOWN"]
-  ICANTEN: ["UNKNOWN"]
   NESEP: [0]
   NESOL: [0, "0"]
   ELMFREQ: [0]
