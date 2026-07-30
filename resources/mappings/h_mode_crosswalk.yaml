@@ -9,9 +9,11 @@ database:
   previous_maintainers: []
 
 sentinels:
+  global: [-9999999]
   HYBRID: ["UNKNOWN"]
   ITB: ["UNKNOWN"]
-  ELMTYPE: ["UNKNOWN"]
+  ITBTYPE: ["NA"]
+  ELMTYPE: ["UNKNOWN", "???????"]
   DIVMAT: ["NONE"]
   LIMMAT: ["NONE"]
   ECHMODE: ["UNKNOWN"]
@@ -20,10 +22,13 @@ sentinels:
   ICANTEN: ["UNKNOWN"]
   NESEP: [0]
   NESOL: [0, "0"]
+  ELMFREQ: [0]
   ELMMAX: [0]
   ELMDUR: [0]
   ELMINT: [0]
-  DALFDV: [-0.002441, -0.004883, -0.007324]  
+  XGASZ: [0]
+  XGASA: [0]
+  XPLIM: [0]
 
 errors:
   ELMFREQ:

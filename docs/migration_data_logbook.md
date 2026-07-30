@@ -24,6 +24,12 @@
 | Whitespace in key | `TOK` | `" CMOD"` (leading space) vs `"CMOD"` | 25/77 CMOD timeslices |
 | Undocumented column | `FRACNMIN` | Not listed in the TC26 variable definition sheet; meaning unknown, so not added to `TC26_crosswalk.xlsx`. Numeric, fill 656/689 (95%), range [0, 1.697] excluding a `-1e-08` sentinel (x52, CMOD-exclusive) -- name suggests a minority-species fraction, but unconfirmed. | all 689 rows |
 
+### 1c. `h-mode_data_V5.csv`
+
+| Issue | Column | Description | Extent |
+|---|---|---|---|
+| Machine-specific unit mismatch | `DALFMP`, `DALFDV` (Dα emission, midplane/divertor) | JET reports these ~1e12–1e17 (photon-flux scale); AUG/NSTX/PBXM/PDX report ~-0.4–7 (different unit/normalization). Both ranges are continuously-varying, >95%-unique real data per machine, not sentinel fill -- the dataset-wide mean/median is dragged up by JET, which makes the automated profiler falsely flag the small-machine values as outliers. No fix via sentinels; would need a per-machine unit conversion. | JET 2025 rows each; other machines 687 (`DALFMP`) / 659 (`DALFDV`) rows |
+
 ## 2. Cross-dataset overlap
 
 | Pair | Shared `(TOK,SHOT)` shots | Exact `(TOK,SHOT,TIME)` timeslices |
