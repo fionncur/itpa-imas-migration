@@ -673,9 +673,7 @@ def load_sidecar(mapping_path: pathlib.Path) -> dict[str, dict]:
         if strategy == "avoid" and not entry.get("avoid"):
             raise ValueError(f"{spec_path}: {name!r} uses strategy 'avoid' but has no 'avoid' list")
     sidecar["errors"] = {name: check_errors(spec, name) for name, spec in sidecar["errors"].items()}
-    global_sentinels = check_sentinels(sidecar["sentinels"].pop("global", []), "global")
     sidecar["sentinels"] = {name: check_sentinels(values, name) for name, values in sidecar["sentinels"].items()}
-    sidecar["sentinels_global"] = global_sentinels
     sidecar["standard_names"] = {
         name: check_standard_names(value, name) for name, value in sidecar["standard_names"].items()
     }
@@ -710,7 +708,7 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     errors = [sidecar["errors"].get(str(name)) for name in df["csv_column"]]
     df["_errors"] = pd.Series(errors, index=df.index, dtype=object)
 
-    global_sentinels = sidecar.get("sentinels_global", [])
+    global_sentinels = sidecar["sentinels"].get("global", [])
     sentinels = [global_sentinels + sidecar["sentinels"].get(str(name), []) for name in df["csv_column"]]
     df["_sentinels"] = pd.Series(sentinels, index=df.index, dtype=object)
 
@@ -858,7 +856,8 @@ def _check_sidecar_names(df: pd.DataFrame, sidecar: dict[str, dict]) -> None:
     for section, entries in sidecar.items():
         if section == "database":
             continue  # a whole-database description, not keyed by csv_column
-        unknown = sorted(set(entries) - known)
+        names = set(entries) - ({"global"} if section == "sentinels" else set())
+        unknown = sorted(names - known)
         if unknown:
             print(
                 f"WARNING: sidecar '{section}' has entr(ies) {unknown} matching no csv_column "
