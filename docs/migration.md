@@ -19,9 +19,8 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 | `notes`              | str                  | Free-text notes, caveats, warnings, etc. |
 | `transform`          | str                  | `identity`, `dictionary`, or `formula` (see [Transform types](#transform-types)) |
 | `transform_args`     | str                  | Arguments for the transform (dict literal or Python expression). |
-| `needs_source`       | bool                 | When `True`, write a value plus a companion sibling instead of a bare value (see [Value/source pairs](#valuesource-pairs)) |
-| `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves written when `needs_source=True`; defaults to `("value", "source")` |
-| `source`             | str, number, or dict | Value written to the companion sibling leaf when `needs_source=True`. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Value/source pairs](#sibling-pair-writes-needs_source-and-source_fields)) |
+| `source_fields`      | str                  | Optional `("value_leaf", "source_leaf")` 2-tuple naming the sibling leaves to write, overriding the pair derived from the DD; defaults to `("value", "source")` (see [Sibling-pair writes](#sibling-pair-writes)) |
+| `source`             | str, number, or dict | Value written to the companion sibling leaf. A **string** or **number** is written into every pulse IDS. A **dict** is a `{machine: descriptor}` literal looked up per-pulse via the value mapped to `summary/machine` (see [Sibling-pair writes](#sibling-pair-writes)) |
 
 The spreadsheet describes the **mapping** (what to write and where).  Further concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, conflict-resolution rules and IMAS standard names (all per-variable), plus a single whole-database description (source, citation, credits).  See [The sidecar](#the-sidecar).
 
@@ -129,44 +128,51 @@ Each path may belong to a different top-level IDS; the script creates IDS object
 
 ---
 
-## Sibling-pair writes (`needs_source` and `source_fields`)
+## Sibling-pair writes
 
-Many IDS nodes pair a measured value with a companion string (provenance, label, etc.) as two sibling leaves under a shared parent. When `needs_source = True`, the script writes to **two** leaves at the same level instead of one bare scalar:
+Many IDS nodes are not a bare scalar but a structure pairing a measured value with a companion string (provenance, label, etc.) as sibling leaves under a shared parent.  `summary/global_quantities/ip` is one: its children are `value`, `value_error_upper`, `value_error_lower` and `source`.  A row targeting such a node writes **two** leaves instead of one:
 
 1. The **value leaf** receives the transformed CSV value.
 2. The **companion leaf** receives the string from the `source` column.
 
-By default the two leaves are `value` and `source`:
+At startup `resolve_value_leaves` looks up each `imas_path` and picks the pair:
+
+- the node has a `value` sub-field (`summary/global_quantities/ip`) -> write `value` and `source`;
+- the node is already a plain leaf (`summary/machine`, a `STR_0D`) -> write the node itself, appending nothing;
+- `source_fields` is set → use the two leaves it names, whatever the DD shape (see below).
 
 ```
-# needs_source=True, source_fields blank, imas_path = "summary/global_quantities/ip"
-summary/global_quantities/ip/value  ← transformed CSV value
-summary/global_quantities/ip/source ← row["source"], e.g. "experiment"
+# source_fields blank, imas_path = "summary/global_quantities/ip"
+summary/global_quantities/ip/value  <- transformed CSV value
+summary/global_quantities/ip/source <- row["source"], e.g. "experiment"
+
+# source_fields blank, imas_path = "summary/machine"
+summary/machine                     <- transformed CSV value (no leaf appended)
 ```
 
 ### Customising the leaf names with `source_fields`
 
-Set `source_fields` to a 2-tuple of strings to name the leaves explicitly.  The **first** element is the value leaf; the **second** is the companion leaf.  The cell is parsed with `ast.literal_eval()` and must be a 2-tuple of strings; anything else raises a `ValueError` at startup naming the offending `csv_column`.
+Set `source_fields` to a 2-tuple of strings to name the leaves explicitly, overriding the DD-derived pair.  The **first** element is the value leaf; the **second** is the companion leaf.  The cell is parsed with `ast.literal_eval()` and must be a 2-tuple of strings; anything else raises a `ValueError` at startup naming the offending `csv_column`.
+
+Use it for the nodes that pair a value with a companion but do not follow the `value`/`source` shape.  `summary/wall/material` is an identifier structure (`name`, `index`, `description`, with no `value`), so its rows name the pair explicitly:
 
 ```
-# needs_source=True, source_fields = ("name", "description")
-# imas_path = "divertors/divertor(0)/identifier"
-divertors/divertor(0)/identifier/name        ← transformed CSV value
-divertors/divertor(0)/identifier/description ← row["source"]
+# source_fields = ("index", "description")
+# csv_column = WALMAT, imas_path = "summary/wall/material"
+summary/wall/material/index       <- transformed CSV value
+summary/wall/material/description <- row["source"]
 ```
 
 This applies to every transform type (`identity`, `dictionary` including dictionary-of-lists, and `formula`).  For dictionary-of-lists, the companion string is written alongside each expanded AoS slot.
 
-If `source` is blank, the companion leaf is omitted and the value is written as a bare node (same as `needs_source = False`).
-
-The companion (source) string is written into **every pulse** alongside the value leaf, when the value is present.
+The companion (source) string is written into **every pulse** alongside the value leaf, when the value is present.  If `source` is blank, only the companion leaf is omitted: the value leaf is still the one the DD selected.
 
 ### Numeric `source`: a constant companion value
 
 When `source` is a **number** rather than a string, it is treated as a real value rather than a provenance label.  It is written to the companion leaf in **every pulse** alongside the value leaf.  This is the eval-free way to attach a fixed constant to a sibling node.
 
 ```
-# needs_source=True, source_fields = ("rho_tor", "rho_tor_norm"), source = 0.95
+# source_fields = ("rho_tor", "rho_tor_norm"), source = 0.95
 # csv_column = R95, imas_path = "summary/local/pedestal/position"
 summary/local/pedestal/position/rho_tor      ← transformed CSV value (R95, per pulse)
 summary/local/pedestal/position/rho_tor_norm ← 0.95 (constant, in every pulse)
@@ -180,7 +186,7 @@ So the companion gating is asymmetric by type:
 - **numeric** `source` → written into every pulse, unconditionally;
 - **dict** `source` → resolved per pulse by machine name, written to the pulse IDS when the value is present (see below).
 
-**Constraint:** both named leaves must exist as sub-fields of the `imas_path` node.  Check the Data Dictionary before setting `needs_source` on a new row.
+**Constraint:** when `source_fields` is set, both named leaves must exist as sub-fields of the `imas_path` node.  The check is automatic (see [Upfront validation](#upfront-validation)); the DD-derived pair always satisfies it.
 
 ### Machine-specific source
 
@@ -189,7 +195,7 @@ When provenance differs across machines, set `source` to a Python dict literal m
 An optional `"default"` key applies to any machine that has no more specific entry of its own.  A machine-specific entry always overrides `"default"` entirely (it is not joined or concatenated). Use it for the machines whose provenance genuinely differs from the rest.
 
 ```
-# needs_source=True, source = {"default": "EFIT", "JET": "JFIT"}
+# source = {"default": "EFIT", "JET": "JFIT"}
 # imas_path = "summary/global_quantities/ip"
 summary/global_quantities/ip/value  ← transformed CSV value (per pulse)
 summary/global_quantities/ip/source ← "JFIT" for JET pulses, "EFIT" for every other machine
@@ -273,7 +279,7 @@ errors:
 For each pulse the script looks up that pulse's machine (the value mapped to `summary/machine`) and, if it is a key, writes the resolved bar to the `_error_upper` sibling of wherever the row's value landed:
 
 - bare node → `<node>_error_upper`;
-- `needs_source` value/source pair → `value_error_upper` (matching the DD layout).
+- sibling-pair write → `value_error_upper` (matching the DD layout).
 
 Behaviour:
 
@@ -399,7 +405,7 @@ anyway); recoverable ones **warn** and continue:
 | Check | Behaviour |
 | ----- | --------- |
 | Every `csv_column` exists in the data CSV | raise |
-| Every `imas_path` (after `&` split and index stripping) exists in the DD; for `needs_source` rows both `source_fields` leaves exist under the node | raise |
+| Every `imas_path` (after `&` split and index stripping) exists in the DD; for sibling-pair rows both leaves of the pair exist under the node | raise |
 | Formula `transform_args` parse, and every free name is a CSV column or Python builtin | raise |
 | Dictionary / formula rows have a `transform_args` string | raise |
 | Dictionary keys cover every value observed in the data column | warn, listing each uncovered value with its count (those rows are skipped silently at run time) |

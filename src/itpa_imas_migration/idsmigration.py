@@ -1009,7 +1009,7 @@ def process_pulse(
         for imas_path in cw_row["_paths"]:
             ids_root = imas_path.split("/")[0]
             if ids_root not in pulse_ids:
-                pulse_ids[ids_root] = new_ids(factory, ids_root)
+                pulse_ids[ids_root] = new_ids(factory, ids_root, comment=database_comment)
             ids = pulse_ids[ids_root]
             value_branch = (imas_path + ("/" + value_leaf if value_leaf else "")).split("/")[1:]
 
