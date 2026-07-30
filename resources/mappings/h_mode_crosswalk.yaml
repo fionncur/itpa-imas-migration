@@ -1,16 +1,12 @@
 database:
-  name: "ITPA Global H-Mode Confinement Database"
-  version: "DB5.2.3"
-  definitions: "https://osf.io/drwcq/"  
-  paper: "The updated ITPA global H-mode confinement database: description and analysis\", Nucl. Fusion 61 076006 (2021), https://doi.org/10.1088/1741-4326/abdb91"
-  csv:
-    - "https://osf.io/zhwa3/download"  
-  authors:
-    - "Geert Verdoolaege"
-    - "Stanley Kaye"
-  maintainers:
-    - "Geert Verdoolaege, Ghent University"
-    - "Knud Tomson, IPP Garching"
+  name: ""
+  version: ""
+  definitions: ""
+  paper: "The updated ITPA global H-mode confinement database: description and analysis\", Nucl. Fusion 61 076006 (2021), https://doi.org/10.1088/1741-4326/abdb91 (variable definitions, source data: https://osf.io/drwcq/)"
+  csv: []
+  authors: []
+  maintainers: []
+  previous_maintainers: []
 
 sentinels:
   HYBRID: ["UNKNOWN"]

@@ -3,7 +3,7 @@ database:
   version: ""
   definitions: "" 
   paper: "Empirical scaling of the L-H threshold power for metal wall tokamaks using a multi-device database\", Nucl. Fusion 66 036016 (2026), https://doi.org/10.1088/1741-4326/ae39f2 (variable definitions, source data available: iopscience.iop.org)"
-  csv: ""
+  csv: []
   authors: []
   maintainers: []  
   previous_maintainers: []
