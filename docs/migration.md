@@ -411,6 +411,7 @@ anyway); recoverable ones **warn** and continue:
 | Dictionary keys cover every value observed in the data column | warn, listing each uncovered value with its count (those rows are skipped silently at run time) |
 | Machine keys in `errors` and dict-valued `source` cells name machines observed in the data (`"default"` exempt) | warn (a key that never matches writes nothing) |
 | `manifest` rows have a `csv_dtype` | warn, row skipped |
+| `manifest` rows' `csv_dtype` bucket names a real field on the `temporary` IDS | raise |
 | Every sidecar entry names a `csv_column` present in the crosswalk | warn (an orphaned entry is never applied) |
 | The sidecar file exists | warn, no sentinels/errors/resolve rules applied |
 
@@ -440,6 +441,7 @@ Run `python idstools/scripts/bin/idsmigration -h` for the full help. The argumen
 | `-d`, `--dataset`    | `2008_data.csv`       | Input CSV filename under `resources/input/` |
 | `-m`, `--mapping`    | `2008_crosswalk.xlsx` | Crosswalk spreadsheet filename under `resources/mappings/` |
 | `--dd-version`       | `4.1.1`               | Data Dictionary version used to build the IDS factory |
+| `--validate`         | off                   | Run crosswalk/data/DD validation and exit; nothing is written |
 | `--simdb`            | off                   | Ingest each migrated pulse into the local SimDB (see below) |
 | `--per-time-slice`   | off                   | Write one IDS set per CSV row instead of one per `(machine, pulse)` group |
 | `-v`, `--verbose`    | off                   | Print each constant conflict as it is resolved (see [Seeing the conflicts](#seeing-the-conflicts--v)) |
@@ -448,7 +450,7 @@ Run `python idstools/scripts/bin/idsmigration -h` for the full help. The argumen
 
 By default the script groups CSV rows by `(machine, pulse)`, sorts each group in ascending time order, and writes **one IDS set per pulse**.  Dynamic IDS nodes (those whose `kind` is `dynamic`) accumulate one value per time-slice; static and constant nodes are written once and checked for consistency across slices. Disagreements are resolved per [Resolving constant conflicts across slices](#resolving-constant-conflicts-across-slices) below (defaulting to keeping the first-seen value) and tallied into a summary printed at the end of the run.
 
-The crosswalk must contain rows mapping to `summary/machine` and `summary/pulse` for grouping to work.  A `summary/time` mapping is optional but recommended; without it, slices are kept in CSV order and the `summary/time` vector is absent.
+The crosswalk must contain rows mapping to `summary/machine` and `summary/pulse` for grouping to work.  A `summary/time` mapping is optional but recommended; without it, slices are kept in CSV order and the `summary/time` vector is absent.  A row missing either the machine or the pulse value is dropped from the grouping entirely (it cannot be assigned to a pulse); the script warns with the count of such rows before processing begins.
 
 Output is one directory per `(machine, pulse)` pair, named `{machine}_{pulse}`:
 

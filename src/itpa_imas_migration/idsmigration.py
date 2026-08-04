@@ -96,7 +96,7 @@ def _as_number(value: Any) -> float | None:
 
 
 def parse_seg(seg: str) -> tuple[str, int]:
-    """Parse a node segment, for fixed AoS indexing or placeholder (wildcard) indexes."""
+    """Split a node segment into its bare name and index, for fixed or wildcard (`:`) indexing."""
     m = re.fullmatch(r"(\w+)\((\d+)\)", seg)  # Explicit index, like divertor(3)
     if m:
         return m.group(1), int(m.group(2))  # "divertor(3)" -> ("divertor", 3)
@@ -608,6 +608,11 @@ def parse_args() -> argparse.Namespace:
         help="Data Dictionary version used to build the IDS factory \t(default=%(default)s)",
     )
     parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Run crosswalk/data/DD validation and exit, without writing any pulses",
+    )
+    parser.add_argument(
         "--simdb",
         action="store_true",
         help="Ingest each migrated pulse into the local SimDB; diverts manifest quantities "
@@ -865,6 +870,22 @@ def _check_sidecar_names(df: pd.DataFrame, sidecar: dict[str, dict]) -> None:
             )
 
 
+def _check_manifest_buckets(df: pd.DataFrame, factory: imas.IDSFactory) -> None:
+    """Every manifest row's csv_dtype bucket must name a real field on the temporary IDS."""
+    ids_cache: dict[str, Any] = {}
+    bad: list[str] = []
+    for _, row in df[df["status"] == "manifest"].iterrows():
+        bucket_raw = row["csv_dtype"]
+        if not isinstance(bucket_raw, str) or bucket_raw.strip() == "":
+            continue  # reported separately by the csv_dtype-missing check
+        if _dd_node_meta(f"temporary/{bucket_raw}", factory, ids_cache) is None:
+            bad.append(
+                f"row {row.name} ('{row['csv_column']}'): csv_dtype bucket '{bucket_raw}' not in the temporary IDS"
+            )
+    if bad:
+        raise ValueError("csv_dtype validation failed:\n  " + "\n  ".join(bad))
+
+
 def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory, sidecar: dict[str, dict]) -> None:
     """Upfront validation of the crosswalk against the data CSV, the Data Dictionary and the sidecar."""
     # Upfront validation: all csv_columns must exist in data.
@@ -883,6 +904,8 @@ def validate(df: pd.DataFrame, data: pd.DataFrame, factory: imas.IDSFactory, sid
     bad_dtype = is_temp & ~df["csv_dtype"].apply(lambda x: isinstance(x, str) and x.strip() != "")
     if bad_dtype.any():
         print(f"WARNING: status 'manifest' but csv_dtype is missing for rows: {list(df.index[bad_dtype])} -- skipping")
+
+    _check_manifest_buckets(df, factory)
 
 
 def temp_var_name(cw_row: pd.Series) -> tuple[str, str]:
@@ -909,7 +932,7 @@ def build_write_spec(df: pd.DataFrame) -> pd.DataFrame:
     Manifest rows are folded into the same structure with a stable AoS index, assigned here
     in crosswalk order so a variable keeps the same slot in every pulse (deterministic layout).
     """
-    temp_idx: dict[str, int] = {}  # dictionary to track temp paths: indices
+    temp_idx: dict[str, int] = {}  # bucket base name -> next (:) index to assign
     temp_seen: dict[str, Any] = {}  # resolved "temporary/..." path -> first row (clash warning)
     specs: list[tuple[list[str], str, list[Descriptor]]] = []
     for _, cw_row in df.iterrows():
@@ -1063,11 +1086,7 @@ def process_pulse(
 
 
 def extract_variables(temporary_ids: IDS) -> dict:
-    """Read scalars out of an in-memory `temporary` IDS into a {name: value} dict.
-
-    Mirrors the original two-stage pipeline (simdb_ingest._read_temporary_scalars) but reads
-    the IDS already in memory rather than from disk, so names/values stay identical.
-    """
+    """Read scalars out of an in-memory `temporary` IDS into a {name: value} dict."""
     result: dict[str, Any] = {}
     for el in temporary_ids.constant_float0d:
         name = str(el.identifier.name)
@@ -1229,6 +1248,14 @@ def run_migration(
         raise ValueError("no row maps to 'summary/machine' to group/name pulses")
     if not per_time_slice and time_col is None:
         print("WARNING: no row maps to 'summary/time' -- slices kept in CSV order")
+    if not per_time_slice:
+        # groupby(dropna=True) silently drops rows missing either key; flag that here.
+        missing_key = data[machine_col].isna() | data[pulse_col].isna()
+        if missing_key.any():
+            print(
+                f"WARNING: {missing_key.sum()} row(s) missing '{machine_col}' or '{pulse_col}' "
+                f"-- excluded from per-pulse grouping"
+            )
 
     # Both modes yield (dir_name, machine, alias, progress_label, pulse_ids) for the shared writer below.
     def pulse_units(groups: list) -> Any:
@@ -1333,6 +1360,11 @@ def main() -> None:
     factory = imas.IDSFactory(version=args.dd_version)
     resolve_value_leaves(crosswalk, factory)
     validate(crosswalk, data, factory, sidecar)
+
+    if args.validate:
+        print("Validation passed; --validate given, not writing any pulses.")
+        return
+
     crosswalk = build_write_spec(crosswalk)
 
     if args.simdb and not SIMDB_AVAILABLE:
