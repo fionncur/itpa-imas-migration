@@ -19,8 +19,17 @@ import re
 import numpy as np
 import pandas as pd
 
+
+def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
+    """Walk up from start to the repo root (the dir holding resources/ or pyproject.toml)."""
+    for candidate in (start, *start.parents):
+        if (candidate / "resources").is_dir() or (candidate / "pyproject.toml").is_file():
+            return candidate
+    return start
+
+
 HERE = pathlib.Path(__file__).resolve().parent
-ROOT = HERE.parents[2]
+ROOT = _find_repo_root(HERE)
 
 MACHINE_COL_CANDIDATES = ["TOK", "MACHINE", "DEVICE"]
 
