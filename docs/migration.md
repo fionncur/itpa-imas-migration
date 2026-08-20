@@ -209,7 +209,7 @@ A dict source is resolved per pulse against the pulse's machine name and written
 
 Some per-variable information is a property of the **data**, not of the mapping, and is sparse: only a handful of variables carry it, and it is structured (a list, or a value per machine) rather than a single scalar. A crosswalk column would cost a cell on every row and force that structure to be stringified. It lives instead in a YAML **sidecar** named `<mapping stem>.yaml`, e.g. `resources/mappings/2008_crosswalk.yaml` for `resources/mappings/2008_crosswalk.xlsx`. It is auto-discovered from the existing `-m/--mapping` path; no CLI flag is involved.
 
-The file has five optional top-level sections. Four are keyed by `csv_column`; `database` is the exception, a single whole-database description rather than one entry per variable:
+The file has five optional top-level sections. Four are keyed by `csv_column`; `database` is the exception, a single whole-database description rather than one entry per variable. `sentinels` additionally accepts one reserved key, `global`, that is not a `csv_column` (see [`global`](#global-dataset-wide-placeholders)):
 
 ```yaml
 resolve:                        # conflict rules for constants that vary across time-slices
@@ -220,6 +220,7 @@ resolve:                        # conflict rules for constants that vary across 
     avoid: ["NONE"]
 
 sentinels:                      # no-data placeholder values
+  global: [-9.999e-09, "."]
   AUXTIME: [-9.999e-09]
   ECHMODE: ["????????", "."]
 
@@ -239,7 +240,7 @@ database:                       # whole-database description -- see `database` b
   maintainers: ["Geert Verdoolaege, Ghent University"]
 ```
 
-An entry naming a variable absent from the crosswalk warns at startup. A **missing sidecar file** also warns and applies nothing. An unrecognised section name raises.
+An entry naming a variable absent from the crosswalk warns at startup (`sentinels: global` is exempt, being reserved rather than a variable name). A **missing sidecar file** also warns and applies nothing. An unrecognised section name raises.
 
 ### `sentinels`
 
@@ -248,6 +249,19 @@ A list of no-data placeholders for one variable. A source value **exactly equal*
 Matching is by exact value **and type**. Where a CSV column holds a mix of ints and strings (pandas reads it as `object` dtype) list both forms, e.g. `NESOL: [0, "0"]`; a bare `[0]` will not match the string `"0"` and the sentinel silently does nothing. Strings are stripped before comparison, matching how the data CSV is loaded.
 
 Sentinel values are also excluded from the dictionary-coverage check, so a placeholder is not reported as an uncovered `dictionary` key.
+
+#### `global`: dataset-wide placeholders
+
+Scalar databases typically share a handful of fill codes across most of their columns, so listing them under every variable would be repetitive and easy to leave incomplete. The reserved key `global` holds placeholders that apply to **every** `csv_column` in the crosswalk:
+
+```yaml
+sentinels:
+  global: [-9.999e-09, 1.7e+38, -9999999, "????????", ".", "********"]
+  TEV: [1, 10]
+  TE0: [1, 10, 9.999e-09]
+```
+
+A variable that has its own entry still inherits the global ones. A global marker that occurs both as a number and as a string needs both forms listed (`[0, "0"]`), and a numeric marker only ever matches numeric cells.
 
 PyYAML follows YAML 1.1, where a float in exponent form needs **both** a decimal point and a signed exponent. The same value written three ways: `1.0e+38` is a float, while `1e+38` (no decimal point) and `1.0e38` (unsigned exponent) are **strings**, and a string sentinel never matches a numeric cell. Plain decimals such as `0.00000001` are always safe.
 

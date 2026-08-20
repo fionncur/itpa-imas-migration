@@ -1,19 +1,7 @@
 database:
-  name: ""
-  version: ""
-  definitions: ""
-  paper: "Power requirement for accessing the H-mode in ITER\", J. Phys.: Conf. Ser. 123 012033 (2008), https://doi.org/10.1088/1742-6596/123/1/012033"
-  csv: []
-  authors: []
-  maintainers: []
-  previous_maintainers: []
-
-resolve:
-  LUPDATE:
-    strategy: "max"
-  EVAP:
-    strategy: "avoid"
-    avoid: ["NONE"]
+  paper: |
+    "Power requirement for accessing the H-mode in ITER\", J. Phys.: 
+    Conf. Ser. 123 012033 (2008), https://doi.org/10.1088/1742-6596/123/1/012033"
 
 sentinels:
   global: [-9.999e-09, 1.7e+38, -9999999, "????????", "??????????", ".", "********"]
@@ -27,3 +15,10 @@ sentinels:
   STTRIGG: [2147483647]
   PMAIN: [-1.29e-31]
   PDIV: [-1.29e-31]
+
+resolve:
+  LUPDATE:
+    strategy: "max"
+  EVAP:
+    strategy: "avoid"
+    avoid: ["NONE"]
