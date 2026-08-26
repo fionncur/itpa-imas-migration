@@ -621,8 +621,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--per-time-slice",
         action="store_true",
-        help="Group CSV rows by (machine, pulse) and write one IDS set per pulse with all its "
-        "time-slices, instead of one IDS set per row",
+        help="Write one IDS set per CSV row, instead of grouping rows by (machine, pulse) and "
+        "writing one IDS set per pulse with all its time-slices",
     )
     parser.add_argument(
         "-v",
