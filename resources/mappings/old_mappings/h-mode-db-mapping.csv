@@ -1,0 +1,192 @@
+,DB_VARIABLE,DB DESCRIPTION,IDS_PATH,IDS DESCRIPTION,DOUBTS/REMARKS,TRANSFORMATION,MAP status (Yes/No),RESOLUTION
+1,TOK,Short name of the tokamak that supplied the data,dataset_description/data_entry/machine,Name of the experimental device to which this data is related,,,Yes,
+2,TOK_ID,Tokamak ID number,,,,,No,
+3,DIVNAME,Divertor configuration,divertors/divertor(0)/name,Name of the divertor,,,Yes,
+4,LCUPDATE,Date of the most recent update for any variable listed in the database,,,we keep trace of creation date byt not of last modif date,,Yes,
+5,DATE,Date where the shot was taken,dataset_description/pulse_time_begin,"Date and time (UTC) at which the pulse started on the experiment, expressed in a human readable form (ISO 8601) : the format of the string shall be : YYYY-MM-DDTHH:MM:SSZ. Example : 2020-07-24T14:19:00Z","only reasonable choice, though no time; date can be converted, standard hour in the day can be decided when not available. PUT MIDNIGHT FOR TIME (00:00:00)",,Yes,
+6,SHOT,Discharge number (shot) from which the data were taken,dataset_description/data_entry/pulse,Pulse number,,,Yes,
+7,TIME,Time during the shot at which the data were taken,,,mapped through T2 ,,"No (map as T2, store EXT)",
+8,TIME_ID,Integer equivalent of TIME,,,"derived from TIME, so not useful",,,
+9,T1,Start of main time average window,summary/time_width,"In case the time-dependent quantities of this IDS are averaged over a time interval, this node is the width of this time interval (empty otherwise). By convention, the time interval starts at time-time_width and ends at time.",T1-T2 = summary/time_width,DBVAR['T2']-DBVAR['T1'],Yes,
+10,T2,End of main time average window,summary/time,Generic time {dynamic} [s],^,,Yes,
+11,AUXHEAT,Type of auxiliary heating,,,look inside summary/summary/heating_current_drive? There seems to be no option,,PENDING,Discussion
+12,PHASE,Phase of the discharge at TIME,,,"H* phases marked with summary/global_quantities/h_mode? Only option of flag, 0 or 1, DB has many options",,PENDING,Discussion
+13,HYBRID,Flag indicating whether the data point is in a hybrid mode,,,,,PENDING,Discussion
+14,ITB,Flag indicating whether the data point has an internal transport barrier,,,"look inside summary/local/itb? Most tokamaks 'unknown', others 'no'",,PENDING,Discussion
+15,ITBTYPE,Flag describing type of ITB,,,,,PENDING,Discussion
+16,ELMTYPE,Flag describing type of ELMs,summary/elms/type/value,"ELMs type (I, II, III, ...)","IDS has stored I, II, III (in fact 1,2,3, as the field is of type INT)� database has TYPE-1, TYPE-II� NONE???????","{'NONE':0, 'TYPE-I':1, 'TYPE-II':2, 'TYPE-III':3, 'TYPE-V':5, 'TYPE-1+2':12, 'TYPE-1+5':15, 'TYPE-RF':6, 'UNKNOWN':999}[DBVAR['ELMTYPE']]",Yes,
+17,ELMFREQ,ELM frequency,summary/elms/frequency/value,ELMs frequency [Hz],has 13286 empty cells,,Yes,
+18,ELMMAX,Average ELM amplitude of the H? signal (minus base level),,,,,PENDING,Discussion
+19,ELMDUR,Average ELM duration of the H? signal,,,,,PENDING,Discussion
+20,ELMINT,Average ELM integral of the H? signal (minus base level),,,,,PENDING,Discussion
+21,OLTIME,Time of the Ohmic to L-mode transition (start of auxiliary heating),,,"""-9.999000e-09"" <=> NaN? ==> these times, which do not correspond to time at which the rest of the quantities are given, does not reflect how time is handled in IDSs, and summary is not built for storing heterogeneous times",,PENDING,Extend DD
+22,LHTIME,Time of the L to H transition,,,"""-9.999000e-09"" <=> NaN?",,,
+23,TPI,Time point indicator (ASDEX only),,,,,PENDING,leave
+24,ISEQ,Parameter scan identifier,dataset_description/ids_properties/comment,,"For filtering data, human metadata",,Yes,
+25,MEFF,Effective atomic mass,summary/line_average/meff_hydrogenic/value,Effective mass of the hydrogenic species (MH. nH+MD.nD+MT.nT)/(nH+nD+nT),,,Yes,
+26,PGASA,Mass of the plasma working gas (AVERAGE),,,shall plasma composition be stored in summary IDS? ,,PENDING,Extend DD
+27,PGASZ,Charge number of the plasma working gas,,,,,PENDING,Extend DD
+28,BGASA,Mass of the neutral beam gas,summary/heating_current_drive/nbi(0)/species/a/value,Injected species / Mass of atom [Atomic Mass Unit],"if =0 means no NBI (array of structure, shall not allocate the element then?)","{0:None, 1:1, 2:2, 3:3, 4:4}[DBVAR['BGASA']]",Yes,
+29,BGASZ,Charge number of the neutral beam gas,summary/heating_current_drive/nbi(0)/species/z_n/value,Injected species / Nuclear charge [Elementary Charge Unit],,"{0:None, 1:1, 2:2}[DBVAR['BGASZ']]",Yes,
+30,BGASA2,Mass of the second neutral beam gas,summary/heating_current_drive/nbi(1)/species/a/value,,,"{0:None, 1:1, 2:2, 3:3, 4:4}[DBVAR['BGASA2']]",Yes,
+31,BGASZ2,Charge number of the second neutral beam gas,summary/heating_current_drive/nbi(1)/species/z_n/value,,,"{0:None, 1:1, 2:2}[DBVAR['BGASZ2']]",Yes,
+32,PELLET,Pellet material if pellets (1 or more) have been injected,,,,,PENDING,Discussion
+33,FUELRATE,Fueling rate of extra gas,summary/gas_injection_rates/total/value,Gas injection rates in equivalent electrons.s^-1 [electrons.s^-1] / Total gas injection rate (sum over species),,,Yes,
+34,XGASA,Mass of extra-fueled gas,,,,,PENDING,
+35,XGASZ,Charge number of extra-fueled gas,,,,,PENDING,
+36,CONFIG,Plasma configuration,summary/boundary/type/value,,,"{'SN':11, 'SN(L)':11, 'SN(U)':12, 'DN':13, 'DND':13, 'IW':4, 'LIM':0, 'BOT':0, 'TOP':0, 'MAR':5}[DBVAR['CONFIG']]",Yes,
+37,RGEO,Plasma geometrical major radius,summary/boundary/geometric_axis_r/value,R position of the geometric axis (defined as (Rmax+Rmin) / 2 of the boundary),,,Yes,
+38,RMAG,Major radius of the magnetic axis,equilibrium/time_slice(0)/global_quantities/magnetic_axis/r,,,,Yes,
+39,AMIN,Horizontal plasma minor radius,summary/boundary/minor_radius/value,Minor radius of the plasma boundary (defined as (Rmax-Rmin) / 2 of the boundary),,,Yes,
+40,KAPPA,Plasma elongation,summary/boundary/elongation/value,Elongation of the plasma boundary,,,Yes (check def),Contact them
+41,KAPPAA,Alternative plasma elongation definition; KAPPAA=AREA/(???AMIN^(2)); for COMPASS: VOL/2???^(2)?AMIN^(2)?RGEO,,,,,PENDING,
+42,KAREA,Alternative plasma elongation definition; KAREA=VOL/(2???^(2)?AMIN^(2)?RGEO),,,,,PENDING,
+43,DELTA,Triangularity of the plasma boundary,equilibrium/time_slice(0)/boundary/triangularity,,,,Yes,
+44,DELTAU,Upper triangularity of the plasma boundary,summary/boundary/triangularity_upper/value,Upper triangularity of the plasma boundary,,,yes,
+45,DELTAL,Lower triangularity of the plasma boundary,summary/boundary/triangularity_lower/value,Lower triangularity of the plasma boundary,,,yes,
+46,INDENT,Indentation of the plasma,,,,,PENDING,Contact them
+47,AREA,Area of the plasma cross-section,equilibrium/time_slice(0)/global_quantities/area,,,,Yes,
+48,VOL,Plasmas volume,summary/global_quantities/volume/value,Volume of the confined plasma,,,Yes,
+49,SURFFORM,Surface area of the plasma from formula,equilibrium/time_slice(0)/global_quantities/surface,,,,Yes,
+50,SEPLIM,Minimum distance between the separatrix flux surface and either the vessel wall or limiters,summary/boundary/gap_limiter_wall/value,Distance between the separatrix and the nearest limiter or wall element,,,Yes,
+51,XPLIM,Minimum distance between the X-point and either the vessel walls or limiters,,,,,PENDING,Discussion
+52,WALMAT,Material of the vessel wall,summary/wall/material/name,"Wall material. Available options (refer to the children of this identifier structure) , Short string identifier {static}",,"{'UNKNOWN':'unspecified', 'NONE':None, 'C':'C', 'SS':'SS', 'IN':'IN', 'IN/C':'IN_C_coating', 'CSS':'SS_C_coating', 'C-W': 'C_W_coating', 'W':'W'}[DBVAR['WALMAT']]",Yes,
+53,DIVMAT,Material of the divertor tiles,,,,,PENDING,Extend DD
+54,LIMMAT,Material of the limiters,summary/limiter/material/name,"Limiter material. Available options (refer to the children of this identifier structure), Short string identifier {static}",MO (Molybdenum) DNE in IMAS (please create),"{'C':'C', 'NONE':None, 'BE':'Be', 'W':'W', 'C-W':'C_W_coating'}[DBVAR['LIMMAT']]",Yes,Extend DD
+55,EVAP,Evaporated material used to cover the inside of the vessel,summary/wall/evaporation/value,Chemical formula of the evaporated material or gas used to cover the vaccum vessel wall. NONE for no evaporation.,,"{'NONE':'No evaporation', 'BOR':'Boron', 'BO':'Boron', 'BOROA':'Boron (B2H6 + CH4 + H2)', 'BOROB':'Boron (B2H6 + H2)', 'BOROC':'Boron', 'BOROX':'Boron', 'B2D6':'Boron', 'CARB':'Carbon', 'CARBH':'Carbon (CH4 + D2)', 'CARBORANE':'Orto-carborane (C2B10H12) into He glow', 'DECABORA':'Decaborane (B10H14)', 'TI':'Titanium', 'BE':'Beryllium', 'SILICON':'Silicon', 'SID4':'Silicon'}[DBVAR['EVAP']]",Yes,
+56,DALFMP,D? emission on the midplane,,,has 11441 empty cells,,PENDING,
+57,DALFDV,D? emission in the divertor,,,has 11469 empty cells,,PENDING,
+58,IGRADB,Indicates the direction of the ion ??? drift,,,Sign of B (grad B will always point inwards),,No,
+59,BT,Vacuum toroidal magnetic field at RGEO,,,,,PENDING,Extend DD
+60,IEML,Ergodic magnetic field coil current,coils_non_axisymmetric/coil(0)/current/data,,,,PENDING,"Discussion, should go to summary"
+61,PREMAG,Flag indicating whether start-up was done with or without pre-magnetization current,,,,,PENDING,Discussion
+62,IP,Plasma current,summary/global_quantities/ip/value,Total plasma current (toroidal component). Positive sign means anti-clockwise when viewed from above.,direction/sign?,,Yes (wait),Signs tbd
+63,VSURF,Loop voltage at the plasma boundary,summary/global_quantities/v_loop/value,LCFS loop voltage (positive value drives positive ohmic current that flows anti-clockwise when viewed from above),"sign, LCFS",,Yes (wait),Signs tbd
+64,Q95,Plasma safety factor at the 95% poloidal flux surface,summary/global_quantities/q_95/value,q at the 95% poloidal flux surface (IMAS uses COCOS=11: only positive when toroidal current and magnetic field are in same direction),,,Yes,
+65,SH95,Magnetic shear at the 95% poloidal flux surface,summary/local/pedestal/magnetic_shear/value,,summary/local/pedestal/position/rho_tor_norm = 0.95,,PENDING,Discussion
+66,BEILI2,"Represents ??i+0.5??i, where ??i is the Shafranov ?? and ??i the internal inductance",summary/global_quantities/li/value,"Internal inductance. The li_3 definition is used, i.e. li_3 = 2/R0/mu0^2/Ip^2 * int(Bp^2 dV).",(BEILI2-BEIMHD)x2,2*(DBVAR['BEILI2']-DBVAR['BEIMHD']),Yes,
+67,BEIMHD,?? Shafranov,summary/global_quantities/li_mhd/value,"(click to see full definition) Internal inductance as determined by an equilibrium reconstruction code. Use this only when the li node above is used for another estimation method and there is a need to store a second value of li (determined by an equilibrium reconstruction code). The li_3 definition is used, i.e. li_3 = 2/R0/mu0^2/Ip^2 * int(Bp^2 dV).","could be, but varying definitions",,PENDING,
+68,BEPMHD,Poloidal ??,summary/global_quantities/beta_pol_mhd/value,Poloidal beta estimated from the pressure determined by an equilibrium reconstruction code. Defined as betap = 4 int(p dV) / [R_0 * mu_0 * Ip^2],,,Yes,
+69,BETMHD,Toroidal ??,summary/global_quantities/beta_tor_mhd/value,"Toroidal beta, using the pressure determined by an equilibrium reconstruction code",,,Yes,
+70,BEPDIA,Poloidal diamagnetic ??,,,,,PENDING,
+71,BMHDMDIA,Offset during the Ohmic phase between MHD and diamagnetic quantities,,,has 11430 empty cells,,PENDING,
+72,TAUCR,Current relaxation time; TAUCR=2.51�10^(-6)?IP?(RGEO/VSURF),,,TAUCR=2.51�10^(-6)?IP?(RGEO/VSURF),,No (can be derived),
+73,FBS,Bootstrap current fraction,summary/global_quantities/current_bootstrap/value,Bootstrap current (toroidal component). Positive sign means anti-clockwise when viewed from above.,FBS is a fraction (0 to Inf?) ; has 14153 (all) empty cells (ideally *IP),,Nothing to map,
+74,RHOQ2,Normalized radius ?? of the ??=2 surface,,,has 14153 (all) empty cells,,Nothing to map,
+75,RHOINV,Normalized sawtooth inversion radius ??; RHOINV=4�10^(?7)?((IP?RGEO)/(AMIN^(2)?BT?KAPPA?(KAPPA+1/KAPPA?))),,,Deriveable,,No,
+76,NEL,Central line-averaged electron density,summary/line_average/n_e/value,Electron density,,,Yes,
+77,NELFORM,Indicates whether NEL is an indirect measurement,summary/line_average/n_e/source,,"IF 0, ""based on direct experimental measurements'' if 1 ''approximated by formula''","""'based on direct experimental measurements'"" if DBVAR['NELFORM']==0 else ""'approximated by formula'""",Yes,
+78,DNELDT,Time rate of change of NEL,summary/line_average/dn_e_dt/value,Time derivative of the electron density,"rate of change in pdf, derivative in IMAS� we can assume instantaneous?",,Yes,
+79,NEV,Volume-averaged electron density,summary/volume_average/n_e/value,,,,Yes,
+80,NE0,Central electron density at the magnetic axis,summary/local/magnetic_axis/n_e/value,,,,Yes,
+81,NE0TSC,Central electron density from Thomson scattering,thomson_scattering/channel(0)/n_e/data,Electron density,has 12667 empty cells,,Yes,
+82,NESEP,Electron density at the separatrix,summary/local/separatrix/n_e/value,Electron density,has 11739 empty cells,,Yes,
+83,NESOL,Electron density in the scrape-off layer,,,has 11739 empty cells,,PENDING,"Ill-defined, Discussion"
+84,PMAIN,Neutral pressure in the main chamber,barometry/gauge(0)/pressure/data,Pressure [Pa],make sure vocab matches; has 14153 (all) empty cells,,Nothing to map,
+85,PDIV,Neutral pressure in the divertor,,,has 14153 (all) empty cells,,Nothing to map,
+86,GP_MAIN,Gas puff in the main chamber,,,has 14153 (all) empty cells,,Nothing to map,
+87,GP_DIV,Gas puff in the divertor,,,has 14153 (all) empty cells,,Nothing to map,
+88,ZEFF,Line-averaged plasma effective charge determined from visible Bremsstrahlung,summary/line_average/zeff/value,"Ionic effective charge, line average along the channel line-of-sight",,,Yes,
+89,ZEFFNEO,Plasma effective charge as determined by neoclassical resistivity,,,,,PENDING,Discussion (derivable)
+90,PRAD,Total radiated power,summary/global_quantities/power_radiated/value,Total radiated power,,,Yes,
+91,POHM,Total Ohmic power; POHM=VSURF?IP,summary/global_quantities/power_ohm/value,Ohmic power,,,Yes,
+92,ENBI,Neutral beam energy weighted by power,,,,,PENDING,Would be better to store separate P and E from which we could calculate averages
+93,PINJ,"Power injected by neutral beam 1, using beam species BGASA, BGASZ",summary/heating_current_drive/nbi(0)/power_launched/value,NBI power launched into the vacuum vessel from this unit [W],,,Yes,
+94,BSOURCE,Power fractions injected by neutral beam 1,summary/heating_current_drive/nbi(0)/beam_current_fraction/value,Fraction of power of a unit injected by each beamlet,,,Yes,
+95,PINJ2,"Power injected by neutral beam 2, using beam species BGASA2, BGASZ2",summary/heating_current_drive/nbi(1)/power_launched/value,NBI power launched into the vacuum vessel from this unit [W],,,Yes,
+96,BSOURCE2,Power fractions injected by neutral beam 2,summary/heating_current_drive/nbi(1)/beam_current_fraction/value,Fraction of power of a unit injected by each beamlet,,,Yes,
+97,COCTR,Fraction of beam power co-injected as compared to the total beam power injected,summary/heating_current_drive/power_launched_nbi_co_injected_ratio/value,,,,PENDING,Discussion (not enough info)
+98,PNBI,Total injected neutral beam power minus shine-through,summary/heating_current_drive/nbi(0)/power/value,,,,,
+99,PFLOSS,Neutral beam power lost from the plasma through charge exchange and unconfined orbits,,,,,PENDING,
+100,ECHFREQ,ECRH frequency,summary/heating_current_drive/ec(0)/frequency/value,Frequency,,,Yes,
+101,ECHMODE,Mode of ECRH waves,ec_launchers/beam(0)/mode,"Identifier for the main plasma wave mode excited by the EC beam. For the ordinary mode (O-mode), mode/data=1. For the extraordinary mode (X-mode), mode/data=-1",,"{'NONE':0, 'OFF':0, 'O':1, 'X':-1, 'X+O':2, 'UNKNOWN':999}[DBVAR['ECHMODE']]",Yes,
+102,ECHLOC,Location of ECRH launch,,Launching position of the beam,,,PENDING,"Discussion, maybe ids_properties/comment (applies to more launchers) talk to ITPA"
+103,PECRHC,ECRH power coupled to the plasma,summary/heating_current_drive/ec(0)/power_launched/value,,,,Yes,
+104,PECRH,ECRH power absorbed by the plasma,summary/heating_current_drive/power_ec/value,,could also be stored in summary/heating_current_drive/ec(1)/power,,Yes,Discussion
+105,ICFREQ,ICRH frequency,ic_antennas/antenna(0)/frequency/data,Frequency (average over modules),,,Yes,
+106,ICSCHEME,ICRH heating scheme,,,,,PENDING,
+107,ICANTEN,ICRH antenna phasing,,,,,PENDING,Discussion
+108,PICRHC,ICRH power coupled to the plasma,summary/heating_current_drive/ic(0)/power_launched/value,,,,Yes,
+109,PICRH,ICRH power absorbed by the plasma,summary/heating_current_drive/power_ic/value,Total IC power coupled to the plasma,could also be stored in summary/heating_current_drive/ic(1)/power,,Yes,
+110,PALPHA,Estimated ?? heating power in deuterium-tritium plasmas,,,,,PENDING,Discussion
+111,DWDIA,Time rate of change of the total plasma stored energy,summary/global_quantities/denergy_diamagnetic_dt/value,,,,,
+112,DWDIAPAR,Time derivative for ASDEX of WDIA from a parabolic fit to the 3 available H-mode points,,,has 13523 empty cells,,No,Discussion
+113,DWMHD,Time rate of change of the total plasma stored energy,summary/global_quantities/denergy_thermal_dt/value,,,,PENDING,Extend DD
+114,DWHC,Flag indicating whether DWDIA or DWMHD were manually corrected for ASDEX,,,,,PENDING,Discuss
+115,TEV,Volume-averaged electron temperature,summary/volume_average/t_e/value,Electron temperature,,,Yes,
+116,TE0,Electron temperature on the magnetic axis,summary/local/magnetic_axis/t_e/value,Electron temperature,,,Yes,
+117,TE0TSC,Electron temperature on the magnetic axis from Thomson scattering,,Electron temperature,Magnetic axis?; has 13009 empty cells,,Yes,Discussion
+118,TIV,Volume-averaged ion temperature,summary/volume_average/t_i_average/value,Ion temperature (average over ion species),,,Yes,
+119,TI0,Ion temperature at the magnetic axis,summary/local/magnetic_axis/t_i_average/value,Ion temperature (average over ion species),,,Yes,
+120,TICX0,Ion temperature at the magnetic axisIon temperature on the magnetic axis from charge exchange recombination spectroscopy,,,has 12625 empty cells,,Yes,
+121,OMGAIMP0,"Central rotation frequency of impurities; OMGAIMP0=2??????tor/??, where ??=2??????",,,has 14153 (all) empty cells,,Nothing to map,
+122,OMGAIMPH,"Rotation frequency of impurities at half radius; OMGAIMPH=2??????tor/??, where ??=2??????",,,has 14153 (all) empty cells,,Nothing to map,
+123,OMGAM0,"Central rotation frequency of main plasma species; OMGAM0=2??????tor/??, where ??=2??????",,,has 14153 (all) empty cells,,Nothing to map,
+124,OMGAMH,"Rotation frequency of main plasma species at half radius; OMGAMH=2??????tor/??, where ??=2??????",,,has 14153 (all) empty cells,,Nothing to map,
+125,SPIN,"Net fraction of NBI power in parallel direction; SPIN=(1/??inj)?(???co,???cos ??co,??????ctr,???cos ??ctr,??)",,,has 12033 empty cells,,PENDING,
+126,TORQ,Torque on plasma due to neutral beam injection,,,has 12025 empty cells,,PENDING,
+127,TORQBM,Volume-integrated torque due to beam,,,has 13287 empty cells,,PENDING,
+128,TORQIN,Volume-integrated total input torque,,,has 13287 empty cells,,PENDING,
+129,VPHI0,Central rotation velocity of plasma,,,has 12555 empty cells,,PENDING,Discussion
+130,VPHIV,Volume-averaged rotation velocity of plasma,,,has 14153 (all) empty cells,,Nothing to map,
+131,VPHIIMP,Volume-averaged rotation velocity of impurity species,,,has 14153 (all) empty cells,,Nothing to map,
+132,WDIA,Total plasma energy as determined from the diamagnetic loop,summary/global_quantities/energy_diamagnetic/value,,,,PENDING,Discussion
+133,WMHD,Total plasma energy as determined by MHD equilibrium calculations,summary/global_quantities/energy_mhd/value,Plasma energy content = 3/2 * integral over the plasma volume of the total kinetic pressure (pressure determined by an equilibrium reconstruction code),,,Yes,
+134,WKIN,Total thermal plasma energy as determined from kinetic measurements,summary/global_quantities/energy_thermal/value,,,,Yes,
+135,WEKIN,Total thermal electron plasma energy as determined from kinetic measurements,summary/global_quantities/energy_electrons_thermal/value,Thermal electron plasma energy content = 3/2 * integral over the plasma volume of the thermal electron pressure,,,Yes,
+136,WIKIN,Total thermal ion plasma energy as determined from kinetic measurements,summary/global_quantities/energy_ion_total_thermal/value,Thermal ion plasma energy content (sum over the ion species) = 3/2 * integral over the plasma volume of the thermal ion pressure,,,Yes,
+137,WROT,Total rotational energy,,,has 14153 (all) empty cells,,Nothing to map,
+138,WFPER,Total perpendicular fast ion energy due to NBI as determined from transport calculations,summary/global_quantities/energy_fast_perpendicular/value,Fast particles perpendicular energy content = 3/2 * integral over the plasma volume of the fast perpendicular pressure,,,Yes,
+139,WFPAR,Total parallel fast ion energy due to NBI as determined from transport calculations,summary/global_quantities/energy_fast_parallel/value,Fast particles parallel energy content = 3/2 * integral over the plasma volume of the fast parallel pressure,,,Yes,
+140,WFFORM,Total fast ion energy due to NBI estimated from approximate formula,distributions/distribution(0)/global_quantities(0)/energy_fast,,In comment put it comes from NBI approximate formula,,Yes,
+141,WFANI,Estimate of fraction of perpendicular fast ion energy as compared to the total fast ion energy due to NBI; WFANI=WFPER/(WFPER+WFPAR),,,WFANI=WFPER/(WFPER+WFPAR),,PENDING,Discussion
+142,WFICRH,Estimate of the perpendicular fast ion energy content during ICRH heating; WFICRH=(4/3)?(DWDIA?DWMHD),,,,,,
+143,WFICRHP,Estimate of the parallel fast ion energy content due to ICRH heating,,,,,,
+144,WFICFORM,Total fast ion energy due to ICRH estimated from approximate formula,,,,,,
+145,ICFORM,Flag indicating whether WFICFORM was used in confinement calculations,,,,,,
+146,WFANIIC,Estimate of fraction of perpendicular fast ion energy compared to total fast ion energy due to ICRH heating,,,,,,
+147,TAUDIA,Total diamagnetic energy confinement time; TAUDIA=WDIA/(POHM+PNBI+PICRH+PECRH?DWDIA),,,,,,
+148,TAUMHD,Total MHD energy confinement time; TAUMHD=WMHD/(POHM+PNBI+PICRH+PECRH?DWMHD),,,,,,
+149,TAUTH1,Thermal energy confinement time TAUTH1=WKIN/(POHM+PNBI+PICRH+PECRH?DWMHD?PFLOSS),,,,,,
+150,TAUTH2,Thermal energy confinement time; TAUTH2=(WMHD?WFFORM?(3/4)?WFICRH)/(POHM+PNBI+PICRH+PECRH?DWMHD?PFLOSS),,,,,,
+151,WTOT,Estimated total plasma energy content,summary/global_quantities/energy_total/value,Plasma energy content = 3/2 * integral over the plasma volume of the total kinetic pressure,,,Yes,
+152,WTH,Estimated thermal plasma energy content,,Thermal plasma energy content = 3/2 * integral over the plasma volume of the thermal pressure,,,Yes,
+153,PL,Estimated loss power not corrected for charge exchange and unconfined orbit losses,,,,,,
+154,PLTH,Estimated loss power corrected for charge exchange and unconfined orbit losses; PLTH=PL?PFLOSS,,,,,,
+155,TAUTOT,Estimated total energy confinement time; TAUTOT=WTOT/PL,summary/global_quantities/tau_energy/value,Energy confinement time,,,Yes,
+156,TAUTH,Estimated thermal energy confinement time; TAUTH=WTH/PLTH,summary/global_quantities/tau_energy_98/value,"Energy confinement time estimated from the IPB98(y,2) scaling",article makes link,,,
+157,TAUC92,Correction factor for thermal confinement time TAUTH,,,,,,
+158,TAUC93,Correction factor for thermal confinement time TAUTH,,,,,,
+159,H89,Confinement enhancement factor w.r.t. ITER89-P,,,,,,
+160,HITERL96,Confinement enhancement factor w.r.t. ITERL96-P,,,,,,
+161,H93,Confinement enhancement factor w.r.t. ITERH93-P,,,,,,
+162,HITER92Y,Confinement enhancement factor w.r.t. ITERH92Y,,,,,,
+163,HEPS97,Confinement enhancement factor w.r.t. HEPS97,,,,,,
+164,HIPB98Y,Confinement enhancement factor w.r.t. IPB98(y),,,,,,
+165,HIPB98Y1,"Confinement enhancement factor w.r.t. IPB98(y,1)",,,,,,
+166,HIPB98Y2,"Confinement enhancement factor w.r.t. IPB98(y,2); HIPB98Y2=TAUTH?TAUC92/IPB98(y,2)",summary/global_quantities/h_98/value,"Energy confinement time enhancement factor over the IPB98(y,2) scaling",,,Yes,
+167,HIPB98Y3,"Confinement enhancement factor w.r.t. IPB98(y,3)",,,,,,
+168,HIPB98Y4,"Confinement enhancement factor w.r.t. IPB98(y,4)",,,,,,
+169,STANDARD,Standard dataset flag for DB1,,,,,,
+170,SELDB1,Selection variable related to DB1,,,,,,
+171,SELDB2,Selection variable related to DB2,,,,,,
+172,SELDB2X,Selection variable with extra criteria related to DB2,,,,,,
+173,IAEA92,Standard dataset flag for DB2,,,,,,
+174,DB2P5,Standard dataset flag for DB2,,,,,,
+175,DB2P8,Standard dataset flag for DB2,,,,,,
+176,DB3IS,Standard dataset flag for DB2,,,,,,
+177,DB3V5,Standard dataset flag for DB3,,,,,,
+178,IAE2000N,Standard dataset flag for DB3,,,,,,
+179,IAE2000X,Standard dataset flag for DB3,,,,,,
+180,HMWS2003,Standard dataset flag for DB3,,,,,,
+181,IAE2004S,Standard dataset flag for DB3,,,,,,
+182,IAE2004I,Standard dataset flag for DB3,,,,,,
+183,DB3DONLY,Standard dataset flag for DB3,,,,,,
+184,HMWS2005,Standard dataset flag for DB3,,,,,,
+185,OJK2006,Standard dataset flag for DB3,,,,,,
+186,SELDB3,Selection variable related to DB3,,,,,,
+187,SELDB3X,Selection variable with extra criteria related to DB3,,,,,,
+188,STD3,Standard dataset flag for DB3,,,,,,
+189,SELDB4,Selection variable related to DB4,,,,,,
+190,STDDB4V5,Standard dataset flag for DB4,,,has 14076 empty cells,,,
+191,SELDB5,Standard dataset flag for DB5,,,,,,
