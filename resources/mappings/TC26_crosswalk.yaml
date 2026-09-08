@@ -1,15 +1,35 @@
 database:
-  name: ""
-  version: ""
-  definitions: "" 
-  paper: "Empirical scaling of the L-H threshold power for metal wall tokamaks using a multi-device database\", Nucl. Fusion 66 036016 (2026), https://doi.org/10.1088/1741-4326/ae39f2 (variable definitions, source data available: iopscience.iop.org)"
-  csv: []
-  authors: []
-  maintainers: []  
-  previous_maintainers: []
+  name: ITPA TC-26 
+  version: 2026 publication dataset
+  # Variable definitions are available in the article's supplementary downloads.
+  definitions: https://iopscience.iop.org/article/10.1088/1741-4326/ae39f2
+  paper: 'Empirical scaling of the L-H threshold power for metal wall tokamaks using a multi-device database,
+    Nucl. Fusion 66 036016 (2026), DOI: 10.1088/1741-4326/ae39f2,
+    https://doi.org/10.1088/1741-4326/ae39f2'
+  # The CSV is available in the article's supplementary downloads.
+  csv:
+  - https://iopscience.iop.org/article/10.1088/1741-4326/ae39f2
+  authors:
+  - E. Delabie
+  - E. R. Solano
+  - J. W. Hughes
+  - C. F. Maggi
+  - F. Ryter
+  - G. Birkenmeier
+  - P. Carvalho
+  - M. Cavedon
+  - M. Chernyshova
+  - P. David
+  - J. Hillesheim
+  - U. Plank
+  maintainers: []
 
-standard_names:
-  SPLASMA: area_of_separatrix
-  IGRADB: ion_grad_b_drift_direction
-  DIVMAT: material_of_divertor_tile
-  PFLOSS: power_due_to_first_orbit_loss+power_due_to_charge_exchange
+sentinels:
+  # Dash: ZEFF x199, PRADCORE x15. Tiny negative fill: LHTIME x1 (AUG
+  # 26359 at 3.75 s), FRACNMIN x52 (CMOD). 
+  global:
+  - '-'
+  - -1.0e-08
+  # All AUG x252 and CMOD x25: exact zero cannot represent plasma effective charge.
+  ZEFF:
+  - '0'
