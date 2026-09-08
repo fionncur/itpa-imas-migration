@@ -1,24 +1,77 @@
 database:
-  paper: |
-    "Power requirement for accessing the H-mode in ITER\", J. Phys.: 
-    Conf. Ser. 123 012033 (2008), https://doi.org/10.1088/1742-6596/123/1/012033"
-
+  name: ITPA International Global L-H Threshold Database (IGDBTH)
+  version: IGDBTH v4.7 (June 2021)
+  definitions: (Audrey Saltzman and Jerry Hughes, MIT, June 2021); public source URL TBD.
+  paper: 'Y. R. Martin, T. Takizuka and ITPA CDBM H-mode Threshold Database Working Group, Power requirement for
+    accessing the H-mode in ITER, J. Phys.: Conf. Ser. 123 (2008) 012033, https://doi.org/10.1088/1742-6596/123/1/012033'
+  csv:
+  - Public source URL TBD.
+  authors: []
+  maintainers: []
 sentinels:
-  global: [-9.999e-09, 1.7e+38, -9999999, "????????", "??????????", ".", "********"]
-  TEV: [1, 10]
-  TE0: [1, 10, 9.999e-09]
-  TI0: [9.999e-09]
-  WMHD: [-9.99e-09]
-  ICANTEN2: ["0.000E+0"]
-  CAUSE: ["UNKNOWN", "???????"]
-  BSOURCE: [9999999]
-  STTRIGG: [2147483647]
-  PMAIN: [-1.29e-31]
-  PDIV: [-1.29e-31]
-
+  global:
+  - -9.999e-09
+  - -9999999
+  - 1.7e+38
+  - .
+  - ????????
+  - ??????????
+  - ???????
+  - '********'
+  - '-9.999E-09'
+  - '-9999999'
+  - '1.7E+38'
+  HLTIME:
+  - 99.99
+  LHTIME:
+  - 99.99
+  ENBI:
+  - 9.999e-09
+  TE0:
+  - 9.999e-09
+  - 1
+  - 10
+  TEV:
+  - 1
+  - 10
+  TI0:
+  - 9.999e-09
+  WMHD:
+  - -9.99e-09
+  VSURF:
+  - 9999.99
+  BEIMHD:
+  - 9999.99
+  PMAIN:
+  - -1.29e-31
+  PDIV:
+  - -1.29e-31
+  STTRIGG:
+  - -1
+  - 2147483647
+  BSOURCE:
+  - 9999999
+  PRADCORE:
+  - -1.0e-08
+  ICANTEN2:
+  - '0.000E+0'
+  CAUSE:
+  - UNKNOWN
+errors:
+  WIKIN:
+    JET: 0.15
 resolve:
   LUPDATE:
-    strategy: "max"
+    strategy: max
   EVAP:
-    strategy: "avoid"
-    avoid: ["NONE"]
+    strategy: avoid
+    avoid:
+    - NONE
+  BGASA:
+    strategy: keep_first
+  BGASZ:
+    strategy: keep_first
+  BGASA2:
+    strategy: keep_first
+  BGASZ2:
+    strategy: keep_first
