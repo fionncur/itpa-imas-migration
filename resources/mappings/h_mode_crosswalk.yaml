@@ -1,31 +1,89 @@
 database:
-  name: ""
-  version: ""
-  definitions: ""
-  paper: "The updated ITPA global H-mode confinement database: description and analysis\", Nucl. Fusion 61 076006 (2021), https://doi.org/10.1088/1741-4326/abdb91 (variable definitions, source data: https://osf.io/drwcq/)"
-  csv: []
-  authors: []
-  maintainers: []
+  name: ITPA Global H-Mode Confinement Database
+  version: DB5.2.3
+  definitions: https://osf.io/drwcq/
+  paper: 'G. Verdoolaege et al., "The updated ITPA global H-mode confinement database: description and
+    analysis", Nucl. Fusion 61 076006 (2021), https://doi.org/10.1088/1741-4326/abdb91'
+  csv:
+  - https://osf.io/zhwa3/download
+  authors:
+  - Geert Verdoolaege
+  - Stanley Kaye
+  maintainers:
+  - Geert Verdoolaege, Ghent University
+  - Knud Tomson, IPP Garching
   previous_maintainers: []
-
 sentinels:
-  global: [-9999999, "UNKNOWN", "???????"]
-  ITBTYPE: ["NA"]
-  DIVMAT: ["NONE"]
-  LIMMAT: ["NONE"]
-  NESEP: [0]
-  NESOL: [0, "0"]
-  ELMFREQ: [0]
-  ELMMAX: [0]
-  ELMDUR: [0]
-  ELMINT: [0]
-  XGASZ: [0]
-  XGASA: [0]
-  XPLIM: [0]
-
+  global:
+  - -9999999
+  - '-9999999'
+  - UNKNOWN
+  - NA
+  - ???????
+  - HGELM???
+  - H???
+  - H/SFE/??
+  - H/HFE/??
+  BGASA:
+  - 0
+  - '0'
+  BGASZ:
+  - 0
+  - '0'
+  BGASA2:
+  - 0
+  - '0'
+  BGASZ2:
+  - 0
+  - '0'
+  XGASA:
+  - 0
+  - 0.0
+  - '0'
+  XGASZ:
+  - 0
+  - '0'
+  IGRADB:
+  - 0
+  - '0'
+  SPIN:
+  - 0.9429
+  - -0.9429
+  ZEFFNEO:
+  - 20
+  - '20'
+  VSURF:
+  - 0.1
+  ELMTYPE:
+  - TYPE-RF
+  ECHMODE:
+  - NONE
+  - 'OFF'
+  - X+O
+  ICANTEN:
+  - NONE
+  - 'OFF'
+# Ranges retain both ends (the migration currently uses the upper end). 
+# n.a. and blank cells are omitted.
+# Unsupported forms are documented.
+# Entries are retained even for manifest/derived/discard rows.
 errors:
+  # PDF pp11.
+  # JET: 1% for regular ELMs, 50% for irregular ELMs. Conditional; not implemented.
   ELMFREQ:
     TCV: 0.01
+  # PDF pp11.
+  ELMMAX:
+    JET: 0.2
+  # PDF pp11.
+  ELMDUR:
+    JET: 0.2
+  # PDF pp12.
+  ELMINT:
+    JET: 0.2
+  # PDF pp17-18.
+  # D3D: pure gas 1%, mixed gas 20%; conditional.
+  # TCV: 0% is explicitly published and retained.
   MEFF:
     ASDEX: 0.1
     AUG: 0.2
@@ -41,6 +99,11 @@ errors:
     START: 0.5
     T10: 0.1
     TUMAN3M: 0.05
+  # PDF pp20.
+  FUELRATE:
+    AUG: 0.2
+    JET: 0.2
+  # PDF pp23.
   RGEO:
     ASDEX: 0.01
     AUG: 0.005
@@ -55,10 +118,15 @@ errors:
     TEXTOR: 0.005
     T10: 0.01
     TUMAN3M: 0.02
-    COMPASS: {abs: 0.01}
-    TFTR: {abs: 0.01}
-    TDEV: {abs: 0.005}
-    START: {abs: 0.02}
+    COMPASS:
+      abs: 0.01
+    TFTR:
+      abs: 0.01
+    TDEV:
+      abs: 0.005
+    START:
+      abs: 0.02
+  # PDF pp24.
   RMAG:
     ASDEX: 0.01
     AUG: 0.01
@@ -73,7 +141,9 @@ errors:
     TEXTOR: 0.02
     TDEV: 0.02
     T10: 0.01
-    TFTR: {abs: 0.04}
+    TFTR:
+      abs: 0.04
+  # PDF pp25.
   AMIN:
     ASDEX: 0.015
     AUG: 0.01
@@ -89,9 +159,14 @@ errors:
     TDEV: 0.05
     T10: 0.03
     TUMAN3M: 0.03
-    COMPASS: {abs: 0.01}
-    TFTR: {abs: 0.01}
-    START: {abs: 0.02}
+    COMPASS:
+      abs: 0.01
+    TFTR:
+      abs: 0.01
+    START:
+      abs: 0.02
+  # PDF pp26.
+  # TFTR: absolute 0.04, not 4%.
   KAPPA:
     ASDEX: 0.02
     AUG: 0.01
@@ -109,6 +184,23 @@ errors:
     START: 0.1
     T10: 0.05
     TUMAN3M: 0.05
+    TFTR:
+      abs: 0.04
+  # PDF pp27.
+  DELTA:
+    ASDEX: 0.03
+    AUG: 0.1
+    CMOD: 0.03
+    COMPASS: 0.1
+    D3D: 0.1
+    JET: 0.1
+    JFT2M: 0.1
+    JT60U: 0.05
+    PBXM: 0.25
+    TCV: 0.03
+    TDEV: 0.1
+    START: 0.1
+  # PDF pp28.
   DELTAU:
     AUG: 0.1
     CMOD: 0.02
@@ -118,6 +210,7 @@ errors:
     TCV: 0.03
     TDEV: 0.1
     START: 0.1
+  # PDF pp28.
   DELTAL:
     AUG: 0.1
     CMOD: 0.01
@@ -127,6 +220,28 @@ errors:
     TCV: 0.03
     TDEV: 0.1
     START: 0.1
+  # PDF pp29.
+  INDENT:
+    PBXM: 0.15
+  # PDF pp29-30.
+  AREA:
+    ASDEX: 0.02
+    AUG: 0.03
+    CMOD: 0.03
+    D3D: 0.03
+    JET: 0.06
+    JFT2M: 0.05
+    JT60U: 0.05
+    PBXM: 0.1
+    PDX: 0.05
+    TCV: 0.01
+    TEXTOR: 0.05
+    TFTR: 0.05
+    TDEV: 0.05
+    START: 0.1
+    T10: 0.06
+    TUMAN3M: 0.06
+  # PDF pp30-31.
   VOL:
     ASDEX: 0.03
     AUG: 0.03
@@ -145,18 +260,58 @@ errors:
     START: 0.1
     T10: 0.07
     TUMAN3M: 0.08
+  # PDF pp31-32.
   SEPLIM:
     TCV: 0.02
-    ASDEX: {abs: 0.01}
-    CMOD: {abs: 0.005}
-    D3D: {abs: 0.005}
-    JET: {abs: 0.01}
-    JFT2M: {abs: 0.01}
-    JT60U: {abs: 0.01}
-    PBXM: {abs: 0.005}
-    PDX: {abs: 0.01}
-    TEXTOR: {abs: 0.005}
-    TDEV: {abs: 0.005}
+    ASDEX:
+      abs: 0.01
+    CMOD:
+      abs: 0.005
+    D3D:
+      abs: 0.005
+    JET:
+      abs: 0.01
+    JFT2M:
+      abs: 0.01
+    JT60U:
+      abs: 0.01
+    PBXM:
+      abs: 0.005
+    PDX:
+      abs: 0.01
+    TEXTOR:
+      abs: 0.005
+    TDEV:
+      abs: 0.005
+  # PDF pp32-33.
+  XPLIM:
+    TCV: 0.02
+    D3D:
+      abs: 0.03
+    JET:
+      abs: 0.05
+    JFT2M:
+      abs: 0.03
+    JT60U:
+      abs: 0.02
+    PBXM:
+      abs: 0.05
+    PDX:
+      abs: 0.05
+    TDEV:
+      abs: 0.01
+  # PDF pp35.
+  DALFMP:
+    AUG: 0.2
+    JET: 0.2
+    PBXM: 0.05
+    PDX: 0.05
+  # PDF pp36.
+  DALFDV:
+    JET: 0.2
+    PBXM: 0.05
+    PDX: 0.05
+  # PDF pp37-38.
   BT:
     ASDEX: 0.01
     AUG: 0.01
@@ -175,6 +330,10 @@ errors:
     START: 0.06
     T10: 0.01
     TUMAN3M: 0.03
+  # PDF pp38.
+  IEML:
+    JFT2M: 0.01
+  # PDF pp39.
   IP:
     ASDEX: 0.01
     AUG: 0.01
@@ -193,6 +352,8 @@ errors:
     START: 0.02
     T10: 0.01
     TUMAN3M: 0.03
+  # PDF pp40.
+  # TFTR: 5% + 0.05 V; additive relative/absolute form unsupported.
   VSURF:
     ASDEX: 0.05
     AUG: 0.1
@@ -208,7 +369,9 @@ errors:
     START: 0.1
     T10: 0.2
     TUMAN3M: 0.05
-    TDEV: {abs: 0.02}
+    TDEV:
+      abs: 0.02
+  # PDF pp40-41.
   Q95:
     ASDEX: 0.1
     AUG: 0.05
@@ -226,6 +389,40 @@ errors:
     TDEV: 0.1
     START: 0.1
     T10: 0.1
+  # PDF pp41.
+  SH95:
+    D3D: 0.5
+    JET: 0.5
+  # PDF pp42.
+  BEILI2:
+    ASDEX: 0.1
+    AUG: 0.03
+    CMOD: 0.03
+    D3D: 0.03
+    JET: 0.05
+    JFT2M: 0.1
+    JT60U: 0.05
+    PBXM: 0.1
+    PDX: 0.1
+    TCV: 0.03
+    TEXTOR: 0.2
+    TFTR: 0.04
+    TDEV: 0.05
+    T10: 0.1
+  # PDF pp43.
+  # D3D: 0.05/beta_p; value-dependent, no percent sign or explicit absolute/relative label.
+  # TFTR: 0.04*BEILI2 + 0.1; cross-variable expression unsupported.
+  BEIMHD:
+    ASDEX: 0.15
+    JET: 0.12
+    JFT2M: 0.15
+    PBXM: 0.15
+    PDX: 0.15
+    TCV: 0.1
+    TEXTOR: 0.15
+    T10: 0.1
+  # PDF pp44.
+  # TFTR: 0.04*BEILI2 + 0.1; cross-variable expression unsupported.
   BEPMHD:
     ASDEX: 0.15
     AUG: 0.1
@@ -236,6 +433,10 @@ errors:
     TCV: 0.1
     TEXTOR: 0.15
     T10: 0.1
+    CMOD: 0.05
+    D3D: 0.05
+  # PDF pp45.
+  # TFTR: 4% + fractional error BEIMHD; dependent propagation unsupported.
   BETMHD:
     ASDEX: 0.18
     AUG: 0.15
@@ -248,6 +449,25 @@ errors:
     TEXTOR: 0.15
     START: 0.15
     T10: 0.1
+    CMOD: 0.05
+    D3D: 0.05
+  # PDF pp46.
+  # COMPASS: source explicitly says 0.1%; encoded literally as 0.001.
+  # TFTR: 4% + 100 kJ/WDIA; dependent expression unsupported.
+  BEPDIA:
+    ASDEX: 0.15
+    AUG: 0.1
+    JET: 0.2
+    TDEV: 0.25
+    T10: 0.1
+    COMPASS: 0.001
+  # PDF pp46-47.
+  BMHDMDIA:
+    ASDEX: 0.05
+    JFT2M:
+    - 0.1
+    - 0.2
+  # PDF pp49-50.
   NEL:
     ASDEX: 0.03
     AUG: 0.03
@@ -265,7 +485,9 @@ errors:
     START: 0.05
     T10: 0.03
     TUMAN3M: 0.1
-    D3D: {abs: 2.0e+18}
+    D3D:
+      abs: 2.0e+18
+  # PDF pp50.
   DNELDT:
     ASDEX: 0.02
     AUG: 0.03
@@ -279,7 +501,9 @@ errors:
     TEXTOR: 0.05
     TFTR: 0.05
     TDEV: 0.1
-    D3D: {abs: 2.0e+18}
+    D3D:
+      abs: 2.0e+18
+  # PDF pp50-51.
   NEV:
     ASDEX: 0.05
     AUG: 0.1
@@ -295,6 +519,7 @@ errors:
     TFTR: 0.1
     TDEV: 0.1
     T10: 0.1
+  # PDF pp51-52.
   NE0:
     ASDEX: 0.1
     AUG: 0.2
@@ -307,6 +532,14 @@ errors:
     TFTR: 0.1
     TDEV: 0.1
     T10: 0.1
+  # PDF pp52.
+  NE0TSC:
+    ASDEX: 0.05
+    AUG: 0.3
+    D3D: 0.1
+    JT60U: 0.1
+    TCV: 0.1
+  # PDF pp56.
   ZEFF:
     ASDEX: 0.1
     CMOD: 0.2
@@ -316,18 +549,30 @@ errors:
     TCV: 0.2
     TDEV: 0.25
     T10: 0.3
+  # PDF pp56.
+  ZEFFNEO:
+    ASDEX: 0.15
+    JET: 0.25
+  # PDF pp57.
   PRAD:
     ASDEX: 0.2
     AUG: 0.2
     CMOD: 0.2
     D3D: 0.15
-    JFT2M: [0.1, 0.2]
+    JFT2M:
+    - 0.1
+    - 0.2
     JT60U: 0.2
     PBXM: 0.25
     TEXTOR: 0.15
     TDEV: 0.2
     T10: 0.25
-    JET: [0.1, 0.15]
+    JET:
+    - 0.1
+    - 0.15
+  # PDF pp58-59.
+  # ASDEX: Ohmic 5%, H-mode 50%. Mixed-regime dataset; neither used unconditionally.
+  # TFTR: absolute 300 kW converted to 300000 W.
   POHM:
     AUG: 0.15
     CMOD: 0.15
@@ -344,7 +589,23 @@ errors:
     START: 0.1
     T10: 0.2
     TUMAN3M: 0.06
-    TFTR: {abs: 300000}
+    TFTR:
+      abs: 300000
+  # PDF pp59-60.
+  # ASDEX: 0.2 kV. Source Units says n.a., while workbook assumes eV.
+  ENBI:
+    AUG: 0.05
+    D3D: 0.1
+    JET: 0.12
+    JFT2M: 0.05
+    JT60U: 0.05
+    PBXM: 0.15
+    PDX: 0.15
+    TEXTOR: 0.05
+    TFTR: 0.05
+  # PDF pp60.
+  # TFTR: "15% absolute, 2% relative". Meaning/combination of these percentages
+  # is not specified.
   PINJ:
     ASDEX: 0.05
     AUG: 0.05
@@ -356,10 +617,15 @@ errors:
     PDX: 0.1
     TEXTOR: 0.05
     START: 0.05
+  # PDF pp61.
+  # TFTR: "15% absolute + 2% relative"; same unresolved convention as PINJ.
   PINJ2:
     AUG: 0.05
     JET: 0.06
     TEXTOR: 0.05
+  # PDF pp62.
+  # TFTR: "15% absolute + 5% relative" (not the 2% listed for PINJ/PINJ2).
+  # Unresolved percentage convention.
   PNBI:
     ASDEX: 0.1
     AUG: 0.1
@@ -371,17 +637,68 @@ errors:
     PDX: 0.1
     TEXTOR: 0.1
     START: 0.2
+  # PDF pp63.
+  PFLOSS:
+    ASDEX: 0.3
+    AUG: 0.2
+    D3D: 0.3
+    JET: 0.5
+    JFT2M: 0.2
+    JT60U: 0.2
+    PBXM: 0.2
+    PDX: 0.3
+    TEXTOR: 0.3
+    TFTR: 0.2
+    START: 0.2
+  # PDF pp64.
   ECHFREQ:
     COMPASS: 0.001
     D3D: 0.001
     TDEV: 0.001
     T10: 0.001
+  # PDF pp65.
+  PECRHC:
+    COMPASS: 0.05
+    D3D: 0.1
+    TDEV: 0.1
+    T10: 0.1
+  # PDF pp65.
+  PECRH:
+    COMPASS: 0.15
+    D3D: 0.1
+    TDEV: 0.1
+    T10: 0.15
+  # PDF pp66.
   ICFREQ:
     AUG: 0.01
     CMOD: 0.005
     D3D: 1.0e-05
     JET: 0.01
     TEXTOR: 0.001
+  # PDF pp67.
+  PICRHC:
+    AUG: 0.1
+    D3D: 0.05
+    JET: 0.1
+    TEXTOR: 0.1
+    CMOD:
+    - 0.03
+    - 0.05
+  # PDF pp68.
+  PICRH:
+    AUG: 0.1
+    CMOD: 0.1
+    JET: 0.1
+    TEXTOR: 0.1
+    D3D:
+    - 0.1
+    - 0.2
+  # PDF pp68.
+  PALPHA:
+    JET: 0.1
+    TFTR: 0.2
+  # PDF pp69.
+  # TFTR: 5% + fractional error on WDIA; dependent propagation unsupported.
   DWDIA:
     ASDEX: 0.2
     AUG: 0.3
@@ -395,286 +712,11 @@ errors:
     TDEV: 0.5
     T10: 0.15
     TUMAN3M: 0.2
-  TEV:
-    ASDEX: 0.05
-    CMOD: 0.05
-    D3D: 0.1
-    JET: 0.1
-    JT60U: 0.05
-    PBXM: 0.3
-    PDX: 0.3
-    TCV: 0.05
-    TFTR: 0.15
-    T10: 0.15
-  TE0:
-    ASDEX: 0.1
-    AUG: 0.3
-    CMOD: 0.1
-    D3D: 0.1
-    JET: 0.1
-    JT60U: 0.1
-    TCV: 0.1
-    TEXTOR: 0.15
-    TFTR: 0.1
-    TDEV: 0.1
-    T10: 0.15
-  TIV:
-    D3D: 0.1
-    JET: 0.3
-    JT60U: 0.07
-    PBXM: 0.3
-    PDX: 0.3
-    TFTR: 0.2
-  WDIA:
-    ASDEX: 0.1
-    AUG: 0.1
-    COMPASS: 0.15
-    JET: 0.05
-    JFT2M: 0.15
-    JT60U: 0.05
-    PDX: 0.15
-    TEXTOR: 0.1
-    TDEV: 0.1
-    T10: 0.1
-    TUMAN3M: 0.2
-  WMHD:
-    AUG: 0.1
-    JET: 0.15
-    JFT2M: 0.15
-    JT60U: 0.05
-    PBXM: 0.15
-    PDX: 0.15
-    TCV: 0.1
-    TEXTOR: 0.2
-    TDEV: 0.1
-    START: 0.15
-    T10: 0.1
-  WKIN:
-    ASDEX: 2.5
-    CMOD: 0.2
-    JET: 0.25
-    JT60U: 0.15
-    PDX: 0.15
-    TEXTOR: 0.15
-    TFTR: 0.25
-  WEKIN:
-    CMOD: 0.15
-    D3D: 0.15
-    JET: 0.2
-    JT60U: 0.15
-    TCV: 0.1
-    TFTR: 0.2
-    T10: 0.2
-  WIKIN:
-    CMOD: 0.25
-    D3D: 0.15
-    JET: 0.15
-    JT60U: 0.15
-    TFTR: 0.25
-  WFPAR:
-    AUG: 0.3
-    JET: 0.3
-    JFT2M: 0.2
-    PBXM: 0.3
-    PDX: 0.3
-    TEXTOR: 0.25
-    TFTR: 0.3
-  SH95:
-    D3D: 0.5
-    JET: 0.5
-  BEPDIA:
-    ASDEX: 0.15
-    AUG: 0.1
-    JET: 0.2
-    TDEV: 0.25
-    T10: 0.1
-  PECRHC:
-    COMPASS: 0.05
-    D3D: 0.1
-    TDEV: 0.1
-    T10: 0.1
-  PICRHC:
-    AUG: 0.1
-    D3D: 0.05
-    JET: 0.1
-    TEXTOR: 0.1
-    CMOD: [0.03, 0.05]
-  TI0:
-    AUG: 0.4
-    CMOD: 0.15
-    D3D: 0.1
-    JET: 0.1
-    JT60U: 0.1
-    TFTR: 0.15
-    T10: 0.1
-  WFPER:
-    AUG: 0.3
-    JET: 0.3
-    JFT2M: 0.2
-    PBXM: 0.3
-    PDX: 0.3
-    TEXTOR: 0.25
-    TFTR: 0.3
-  DELTA:
-    ASDEX: 0.03
-    AUG: 0.1
-    CMOD: 0.03
-    COMPASS: 0.1
-    D3D: 0.1
-    JET: 0.1
-    JFT2M: 0.1
-    JT60U: 0.05
-    PBXM: 0.25
-    TCV: 0.03
-    TDEV: 0.1
-    START: 0.1
-  AREA:
-    ASDEX: 0.02
-    AUG: 0.03
-    CMOD: 0.03
-    D3D: 0.03
-    JET: 0.06
-    JFT2M: 0.05
-    JT60U: 0.05
-    PBXM: 0.1
-    PDX: 0.05
-    TCV: 0.01
-    TEXTOR: 0.05
-    TFTR: 0.05
-    TDEV: 0.05
-    START: 0.1
-    T10: 0.06
-    TUMAN3M: 0.06
-  BEILI2:
-    ASDEX: 0.1
-    AUG: 0.03
-    CMOD: 0.03
-    D3D: 0.03
-    JET: 0.05
-    JFT2M: 0.1
-    JT60U: 0.05
-    PBXM: 0.1
-    PDX: 0.1
-    TCV: 0.03
-    TEXTOR: 0.2
-    TFTR: 0.04
-    TDEV: 0.05
-    T10: 0.1
-  BEIMHD:
-    ASDEX: 0.15
-    JET: 0.12
-    JFT2M: 0.15
-    PBXM: 0.15
-    PDX: 0.15
-    TCV: 0.1
-    TEXTOR: 0.15
-    T10: 0.1
+  # PDF pp70.
   DWDIAPAR:
     ASDEX: 0.2
-  TAUDIA:
-    AUG: 0.15
-    COMPASS: 0.15
-    D3D: 0.15
-    JFT2M: 0.2
-    JT60U: 0.15
-    PDX: 0.2
-    TEXTOR: 0.15
-    TDEV: 0.3
-    T10: 0.25
-    TUMAN3M: 0.21
-  TAUMHD:
-    ASDEX: 0.15
-    AUG: 0.15
-    CMOD: 0.15
-    D3D: 0.15
-    JET: 0.35
-    JFT2M: 0.2
-    PBXM: 0.2
-    PDX: 0.2
-    TCV: 0.1
-    TEXTOR: 0.2
-    TDEV: 0.3
-    START: 0.15
-    T10: 0.25
-  IEML:
-    JFT2M: 0.01
-  BMHDMDIA:
-    ASDEX: 0.05
-    JFT2M: [0.1, 0.2]
-  PALPHA:
-    JET: 0.1
-    TFTR: 0.2
-  TICX0:
-    JET: 0.1
-    JT60U: 0.1
-  TAUC92:
-    ASDEX: 0.1
-    PDX: 0.1
-  TAUC93:
-    ASDEX: 0.1
-    PDX: 0.1
-  ELMMAX:
-    JET: 0.2
-  ELMDUR:
-    JET: 0.2
-  ELMINT:
-    JET: 0.2
-  FUELRATE:
-    AUG: 0.2
-    JET: 0.2
-  INDENT:
-    PBXM: 0.15
-  XPLIM:
-    TCV: 0.02
-    D3D: {abs: 0.03}
-    JET: {abs: 0.05}
-    JFT2M: {abs: 0.03}
-    JT60U: {abs: 0.02}
-    PBXM: {abs: 0.05}
-    PDX: {abs: 0.05}
-    TDEV: {abs: 0.01}
-  NE0TSC:
-    ASDEX: 0.05
-    AUG: 0.3
-    D3D: 0.1
-    JT60U: 0.1
-    TCV: 0.1
-  ZEFFNEO:
-    ASDEX: 0.15
-    JET: 0.25
-  ENBI:
-    AUG: 0.05
-    D3D: 0.1
-    JET: 0.12
-    JFT2M: 0.05
-    JT60U: 0.05
-    PBXM: 0.15
-    PDX: 0.15
-    TEXTOR: 0.05
-    TFTR: 0.05
-  PFLOSS:
-    ASDEX: 0.3
-    AUG: 0.2
-    D3D: 0.3
-    JET: 0.5
-    JFT2M: 0.2
-    JT60U: 0.2
-    PBXM: 0.2
-    PDX: 0.3
-    TEXTOR: 0.3
-    TFTR: 0.2
-    START: 0.2
-  PECRH:
-    COMPASS: 0.15
-    D3D: 0.1
-    TDEV: 0.1
-    T10: 0.15
-  PICRH:
-    AUG: 0.1
-    CMOD: 0.1
-    JET: 0.1
-    TEXTOR: 0.1
-    D3D: [0.1, 0.2]
+  # PDF pp70-71.
+  # TFTR: 5% + fractional error on WTOT; dependent propagation unsupported.
   DWMHD:
     ASDEX: 0.2
     AUG: 0.3
@@ -689,10 +731,142 @@ errors:
     TDEV: 0.25
     START: 0.2
     T10: 0.15
+  # PDF pp72.
+  TEV:
+    ASDEX: 0.05
+    CMOD: 0.05
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.05
+    PBXM: 0.3
+    PDX: 0.3
+    TCV: 0.05
+    TFTR: 0.15
+    T10: 0.15
+  # PDF pp73.
+  TE0:
+    ASDEX: 0.1
+    AUG: 0.3
+    CMOD: 0.1
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.1
+    TCV: 0.1
+    TEXTOR: 0.15
+    TFTR: 0.1
+    TDEV: 0.1
+    T10: 0.15
+  # PDF pp74.
   TE0TSC:
     ASDEX: 0.05
     D3D: 0.1
     JT60U: 0.1
+  # PDF pp74-75.
+  # AMBIGUITY p75: PBXM is printed twice with 30%; no PDX row is printed.
+  # Retain PBXM 30% once; do not infer PDX from the repeated label.
+  TIV:
+    D3D: 0.1
+    JET: 0.3
+    JT60U: 0.07
+    PBXM: 0.3
+    TFTR: 0.2
+  # PDF pp75-76.
+  TI0:
+    AUG: 0.4
+    CMOD: 0.15
+    D3D: 0.1
+    JET: 0.1
+    JT60U: 0.1
+    TFTR: 0.15
+    T10: 0.1
+  # PDF pp76.
+  TICX0:
+    JET: 0.1
+    JT60U: 0.1
+  # PDF pp81-82.
+  # D3D: 0.1/beta_p; value-dependent, absolute/relative convention not explicit.
+  # TFTR: 4% + 100 kJ; additive form unsupported.
+  # ASDEX: 10% plus parenthetical "20% on Wdia"; JFT2M: 15% plus
+  # "1-2 kJ on Wdia". Fixed entries preserve the stated WDIA percentages;
+  # the additional raw-Wdia terms and their combination remain unresolved.
+  WDIA:
+    ASDEX: 0.1
+    AUG: 0.1
+    COMPASS: 0.15
+    JET: 0.05
+    JFT2M: 0.15
+    JT60U: 0.05
+    PDX: 0.15
+    TEXTOR: 0.1
+    TDEV: 0.1
+    T10: 0.1
+    TUMAN3M: 0.2
+  # PDF pp82-83.
+  # ASDEX: Ohmic 20%, H-mode 10%; conditional, not emitted.
+  # CMOD: 10% + 10 kJ; additive form unsupported.
+  # COMPASS: source says n.a.; the former local 15% was unsupported and removed.
+  # D3D: 0.05/beta_p; absolute/relative convention not explicit.
+  # TFTR: 2% + fractional error BEIMHD; dependent propagation unsupported.
+  WMHD:
+    AUG: 0.1
+    JET: 0.15
+    JFT2M: 0.15
+    JT60U: 0.05
+    PBXM: 0.15
+    PDX: 0.15
+    TCV: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.1
+    START: 0.15
+    T10: 0.1
+  # PDF pp83-84.
+  # ASDEX: 25% (0.25).
+  # D3D: 0.05/beta_p; absolute/relative convention not explicit.
+  WKIN:
+    ASDEX: 0.25
+    CMOD: 0.2
+    JET: 0.25
+    JT60U: 0.15
+    PDX: 0.15
+    TEXTOR: 0.15
+    TFTR: 0.25
+  # PDF pp84.
+  # ASDEX: default 10%, H-mode 15%; conditional, not emitted.
+  WEKIN:
+    CMOD: 0.15
+    D3D: 0.15
+    JET: 0.2
+    JT60U: 0.15
+    TCV: 0.1
+    TFTR: 0.2
+    T10: 0.2
+  # PDF pp84-85.
+  WIKIN:
+    D3D: 0.15
+    CMOD: 0.25
+    JET: 0.15
+    JT60U: 0.15
+    TFTR: 0.25
+  # PDF pp85-86.
+  WFPER:
+    AUG: 0.3
+    JET: 0.3
+    JFT2M: 0.2
+    PBXM: 0.3
+    PDX: 0.3
+    TEXTOR: 0.25
+    TFTR: 0.3
+  # PDF pp86.
+  WFPAR:
+    AUG: 0.3
+    JET: 0.3
+    JFT2M: 0.2
+    PBXM: 0.3
+    PDX: 0.3
+    TEXTOR: 0.25
+    TFTR: 0.3
+  # PDF pp87-88.
+  # JFT2M, PBXM, PDX: Co. (compound); no propagation convention supplied.
   WFFORM:
     ASDEX: 0.15
     AUG: 0.3
@@ -701,6 +875,8 @@ errors:
     JT60U: 0.2
     TEXTOR: 0.3
     START: 0.2
+  # PDF pp88-89.
+  # JFT2M, PBXM, PDX: Co. (compound); no propagation convention supplied.
   WFANI:
     ASDEX: 0.07
     AUG: 0.4
@@ -708,12 +884,76 @@ errors:
     JET: 0.5
     TEXTOR: 0.3
     TFTR: 0.2
+  # PDF pp89-90.
   WFICRH:
     CMOD: 0.5
     JET: 0.5
+  # PDF pp90.
   WFICRHP:
     JET: 0.5
+  # PDF pp90-91.
   WFICFORM:
     JET: 0.5
+  # PDF pp91.
   WFANIIC:
     JET: 0.5
+  # PDF pp92.
+  # ASDEX and JET: Ohmic 25%, H-mode 15%; conditional, not implemented.
+  # TFTR: 20% only for DWDIA=0; conditional, not implemented.
+  TAUDIA:
+    AUG: 0.15
+    COMPASS: 0.15
+    D3D: 0.15
+    JFT2M: 0.2
+    JT60U: 0.15
+    PDX: 0.2
+    TEXTOR: 0.15
+    TDEV: 0.3
+    T10: 0.25
+    TUMAN3M: 0.21
+  # PDF pp92.
+  # TFTR: 20% only for DWMHD=0; conditional, not implemented.
+  TAUMHD:
+    ASDEX: 0.15
+    AUG: 0.15
+    CMOD: 0.15
+    D3D: 0.15
+    JET: 0.35
+    JFT2M: 0.2
+    PBXM: 0.2
+    PDX: 0.2
+    TCV: 0.1
+    TEXTOR: 0.2
+    TDEV: 0.3
+    START: 0.15
+    T10: 0.25
+  # PDF pp99-100.
+  # JET: 30% accompanies the 870101 <= DATE <= 871231 exception.
+  # Date-conditional; not implemented for all JET rows.
+  TAUC92:
+    ASDEX: 0.1
+    PDX: 0.1
+  # PDF pp100.
+  # ASDEX and PDX percentages follow the published table.
+  TAUC93:
+    ASDEX: 0.1
+    PDX: 0.1
+resolve:
+  # There is no evidence for which is right in conflicting cases; `max` at
+  # least makes the choice deterministic and independent of slice order.
+  DIVNAME:
+    strategy: max
+  WALMAT:
+    strategy: max
+  # EVAP disagrees on three pulses (D3D 82205, MAST 8246, MAST 8414) and in
+  # every case the competing value is the placeholder NONE.
+  EVAP:
+    strategy: avoid
+    avoid:
+    - NONE
+  # 51 pulses carry more than one update date; the latest is the current one.
+  LCUPDATE:
+    strategy: max
+  # Two pulses (COMPASS 22059, JFT2M 32609) carry shot dates one day apart.
+  DATE:
+    strategy: max
