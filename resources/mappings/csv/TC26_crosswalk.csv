@@ -18,7 +18,7 @@ PRADCORE,W,W,,FLT_1D,summary/global_quantities/power_radiated_inside_lcfs,"Core 
 CONFIG,,,,INT_1D,summary/boundary/type,"Plasma configuration. All TC-26 data is single null with the X-point at the bottom of the machine, noted as SN(B) or SN(L).","0 (limiter), 1 (diverted), 11 (LSN), 12 (USN), 13 (DN), 14 (snowflake)",dynamic,mapped,"SN, SN(B), SN(L) all collapse to LSN configuration.",dictionary,"{""SN"":11, ""SN(B)"":11, ""SN(L)"":11}",,,summary/boundary/type
 PGASA,u,u,,FLT_1D,summary/volume_average/meff_hydrogenic,Effective mass number of the plasma fuel ions. This ranges from 1 to 3 in the database.,Effective mass of the hydrogenic species (MH. nH+MD.nD+MT.nT)/(nH+nD+nT)  ,dynamic,mapped,,identity,,,,summary/volume_average/meff_hydrogenic
 SPLASMA,m^2,,dynamic_float1d(:),,,Separatrix surface area from an MHD equilibrium fit in m2.,,,manifest,,identity,,,,
-IGRADB,,,constant_float0d(:),,,Direction of the ion grad-B drift. 1 is towards the X-point.,,,manifest,"physical_base=grad_b_drift_direction, new token proposal. 1 is towards the X-point. Still problematic because of this convention.",identity,,,,
+IGRADB,,,constant_float0d(:),,,Direction of the ion grad-B drift. 1 is towards the X-point.,,,manifest,,identity,,,1 is towards the X-point,
 DIVNAME,,,constant_string0d(:),,,Divertor name for each tokamak.,,,manifest,,identity,,,,
 DIVMAT,,,constant_string0d(:),,,Material of the plasma facing components in the divertor.,,,manifest,,identity,,,,
 DIVCON,,,constant_string1d(:),,,Magnetic configuration in the divertor.,,,manifest,,identity,,,,
