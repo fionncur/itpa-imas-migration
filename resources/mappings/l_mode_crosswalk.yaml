@@ -1,0 +1,78 @@
+database:
+  name: ITER L-mode Confinement Database
+  version: LDB3.2
+  definitions: Kaye et al. (1997), Appendix B, pp. 1324-1327, https://doi.org/10.1088/0029-5515/37/9/I10.
+    This defines LDB1.0; later fields and ambiguities are resolved individually from H-mode or ITPA2008 databases,
+    or inferred from column names/values.
+  paper: S. M. Kaye and the ITER Confinement Database Working Group, ITER L mode confinement database, Nuclear Fusion
+    37 (1997), 1303-1328. https://doi.org/10.1088/0029-5515/37/9/I10
+  csv:
+  - 'Source CSV TBD'
+  authors:
+  - S. M. Kaye
+  - ITER Confinement Database Working Group
+  maintainers: []
+sentinels:
+  global:
+  - -9999999
+  - -9.999e-09
+  - 1.7e+38
+  - 1.0e+38
+  - ????????
+  - ???????
+  BGASA:
+  - 0
+  BGASZ:
+  - 0
+  BGASA2:
+  - 0
+  BGASZ2:
+  - 0
+  ZEFF:
+  - 0
+  NEV:
+  - 0
+  NE0:
+  - 0
+  TEV:
+  - 0
+  TE0:
+  - 0
+  TIV:
+  - 0
+# TI0=-888 is one impossible CMOD temperature (960301003, 0.94 s).
+  TI0:
+  - 0
+  - 9.999e-09
+  - -888
+  XGASA:
+  - -9
+  - 0
+  XGASZ:
+  - -9
+  - 0
+  ICANTEN:
+  - NONE
+  - none
+  ICANTEN2:
+  - NONE
+  ECHMODE:
+  - NONE
+  - none
+resolve:
+  LCUPDATE:
+    strategy: max
+  WALMAT:
+    strategy: keep_first
+  EVAP:
+    strategy: avoid
+    avoid:
+    - NONE?
+  BGASA:
+    strategy: keep_first
+  BGASZ:
+    strategy: keep_first
+  DATE:
+    strategy: keep_first
+  PELLET:
+    strategy: max
