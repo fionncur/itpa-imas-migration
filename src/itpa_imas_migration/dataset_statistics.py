@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""profile_dataset: per-column statistics dump for a scalar database CSV.
+"""dataset_statistics: per-column statistics dump for a scalar database CSV.
 
 Reads the original data .csv and writes a markdown profile per dataset:
 automatic NA-marker detection, multi-signal sentinel detection, full categorical value
 tables, and per-machine statistics. 
 
 Usage:
-    python idstools/scripts/temporary/profile_dataset [-d tc26_data.csv]
+    python idstools/scripts/temporary/dataset_statistics [-d tc26_data.csv]
                                                       [--machine-col TOK]
                                                       [-o resources/profiles]
 """
