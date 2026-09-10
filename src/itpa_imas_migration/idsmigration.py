@@ -1085,6 +1085,46 @@ def process_pulse(
 # ---------------------------------------------------------------------------
 
 
+def _configure_simdb_windows_file_uris() -> None:
+    """Handle Windows file paths in this process without changing the installed SimDB."""
+    if sys.platform != "win32":
+        return
+
+    from urllib.request import url2pathname
+    import simdb.uri as simdb_uri
+
+    if getattr(simdb_uri.URI, "_migration_windows_file_uris", False):
+        return
+
+    base_uri = simdb_uri.URI
+
+    class WindowsFileURI(base_uri):
+        _migration_windows_file_uris = True
+
+        def __init__(self, uri=None, *, scheme=None, path=None):
+            if uri is not None and scheme in (None, "file") and str(uri).lower().startswith("file:"):
+                if isinstance(uri, base_uri):
+                    file_path = uri.path
+                else:
+                    raw_path = str(uri)[5:]
+                    # Manifest.inputs also constructs file:// + a native glob result.
+                    if "\\" in raw_path:
+                        file_path = pathlib.Path(raw_path.removeprefix("//"))
+                    else:
+                        file_path = pathlib.Path(url2pathname(raw_path))
+                super().__init__(scheme="file", path=file_path if path is None else path)
+            else:
+                super().__init__(uri, scheme=scheme, path=path)
+
+        def __str__(self):
+            if self.scheme == "file" and self.path is not None and self.path.is_absolute():
+                return self.path.as_uri()
+            return super().__str__()
+
+    # SimDB's manifest parser and ORM both look up this class when reading URIs.
+    simdb_uri.URI = WindowsFileURI
+
+
 def extract_variables(temporary_ids: IDS) -> dict:
     """Read scalars out of an in-memory `temporary` IDS into a {name: value} dict."""
     result: dict[str, Any] = {}
@@ -1125,6 +1165,7 @@ def make_manifest(
     alias: str,
     variables: dict,
     name_kind: dict[str, str],
+    input_paths: tuple[pathlib.Path, ...] = (),
 ) -> "Manifest":
     """Build a SimDB Manifest for one migrated pulse (one entry per pulse).
 
@@ -1132,6 +1173,7 @@ def make_manifest(
     metadata groups per `name_kind` (from temp_var_name), so each is queryable as
     standard_name.<name> or db_variable.<name>.
     """
+    _configure_simdb_windows_file_uris()
     metadata = [
         {"dataset": dataset},
         {"machine": machine},
@@ -1150,7 +1192,7 @@ def make_manifest(
     data = {
         "manifest_version": 2,
         "alias": alias,
-        "inputs": [],
+        "inputs": [{"uri": path.resolve().as_uri()} for path in input_paths],
         "outputs": [{"uri": uri}],
         "metadata": metadata,
     }
@@ -1183,11 +1225,12 @@ def write_pulse_dir(output_dir: pathlib.Path, name: str, pulse_ids: dict[str, ID
 def simdb_ingest(db: Any, config: Any, manifest: "Manifest", alias: str) -> bool:
     """Insert one pulse into SimDB, overwriting any existing entry for `alias`. Returns success."""
     try:
+        simulation = Simulation(manifest, config)
         try:
             db.delete_simulation(alias)  # overwrite: drop any existing entry for this alias
         except DatabaseError:
             pass  # no existing entry to replace
-        db.insert_simulation(Simulation(manifest, config))
+        db.insert_simulation(simulation)
         return True
     except Exception as exc:
         _print_over_progress(f"  SimDB ingest FAILED for {alias}: {exc}")
@@ -1206,6 +1249,7 @@ def run_migration(
     per_time_slice: bool = True,
     resolve_spec: dict[str, dict] | None = None,
     database_comment: str | None = None,
+    input_paths: tuple[pathlib.Path, ...] = (),
 ) -> None:
     """Build and write each pulse to disk immediately, without accumulating in memory.
 
@@ -1215,6 +1259,7 @@ def run_migration(
     When `simdb_enabled`, the in-memory `temporary` IDS is diverted into the SimDB manifest as
     `variables` metadata instead of being written to disk, and one SimDB entry is ingested per
     pulse. The `summary` IDS is always written to disk (SimDB catalogues it by reference).
+    `input_paths` records the source crosswalk, optional sidecar, and CSV in each manifest.
 
     `database_comment` (see `format_database_comment`) is stamped onto every root's
     `ids_properties.comment` in every pulse.
@@ -1326,7 +1371,7 @@ def run_migration(
 
         if simdb_enabled:
             variables = extract_variables(temp_ids) if temp_ids is not None else {}
-            manifest = make_manifest(pulse_dir, dataset, machine, alias, variables, temp_name_kind)
+            manifest = make_manifest(pulse_dir, dataset, machine, alias, variables, temp_name_kind, input_paths)
             if simdb_ingest(db, config, manifest, alias):
                 ingested += 1
             else:
@@ -1353,10 +1398,13 @@ def main() -> None:
     args = parse_args()
     VERBOSE = args.verbose
     mapping_path = ROOT / "resources" / "mappings" / args.mapping
+    dataset_path = ROOT / "resources" / "input" / args.dataset
+    sidecar_path = mapping_path.with_suffix(".yaml")
+    input_paths = (mapping_path,) + ((sidecar_path,) if sidecar_path.is_file() else ()) + (dataset_path,)
     output_dir = ROOT / "resources" / "results" / args.experiment
     sidecar = load_sidecar(mapping_path)
     crosswalk = load_crosswalk(mapping_path, sidecar)
-    data = load_dataset(ROOT / "resources" / "input" / args.dataset)
+    data = load_dataset(dataset_path)
     factory = imas.IDSFactory(version=args.dd_version)
     resolve_value_leaves(crosswalk, factory)
     validate(crosswalk, data, factory, sidecar)
@@ -1387,6 +1435,7 @@ def main() -> None:
         per_time_slice=args.per_time_slice,
         resolve_spec=sidecar["resolve"],
         database_comment=format_database_comment(sidecar["database"]),
+        input_paths=input_paths,
     )
 
 

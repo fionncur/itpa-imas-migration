@@ -549,6 +549,9 @@ Each entry's manifest carries:
 | `metadata.standard_name.*`              | manifest quantities diverted from the in-memory `temporary` IDS (see [Diversion under `--simdb`](#diversion-under---simdb)) whose crosswalk row has a sidecar [`standard_names`](#standard_names) entry, keyed by that standard name |
 | `metadata.db_variable.*`                | the same, for manifest quantities with no `standard_names` entry, keyed by `csv_column` instead |
 | `outputs.uri`                           | `imas:hdf5?path=<pulse_dir>#summary` (a **reference** to the on-disk summary IDS) |
+| `inputs[].uri`                          | Absolute `file:` URIs for the crosswalk XLSX, its same-stem YAML sidecar (when present), and the original input CSV, in that order; shared by every pulse entry in the run |
+
+Input URIs use the filesystem of the Python environment running the migration. Linux records paths such as `file:///home/user/IDStools/resources/mappings/TC26_crosswalk.xlsx`; Windows records `file:///C:/Users/...`. On Windows only, the migration adjusts SimDB's file-URI parser in its own process to handle drive letters and URI escaping during ingestion and database reads. Linux behavior and the installed SimDB package are unchanged.
 
 Each manifest quantity lands in exactly one of the two groups, decided per-row by `temp_var_name()`: a sidecar `standard_names` entry sends it to `standard_name.<name>`; a blank one falls back to `db_variable.<csv_column>`.  This keeps quantities with an agreed IMAS standard name distinguishable, when queried later, from ad-hoc database columns that don't have one yet (e.g. `simdb simulation query standard_name.loss_power=...` vs `db_variable.SELEC2007=...`).
 
