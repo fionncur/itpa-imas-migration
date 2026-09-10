@@ -698,6 +698,13 @@ def load_crosswalk(mapping_path: pathlib.Path, sidecar: dict[str, dict]) -> pd.D
     keep_mask = df["transform"].isin(["identity", "dictionary", "formula"]) & df["status"].isin(
         ["mapped", "manifest", "mapped_caveat"]
     )
+    dropped_manifest = list(df.index[(df["status"] == "manifest") & ~keep_mask])
+    if dropped_manifest:
+        print(
+            f"WARNING: status 'manifest' but transform is missing or unimplemented for rows: "
+            f"{dropped_manifest} -- skipping"
+        )
+
     df = df[keep_mask]
 
     # Parse the optional source_fields column into (value_leaf, source_leaf) pairs. Blank/NaN
