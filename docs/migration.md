@@ -24,6 +24,32 @@ The `idsmigration` script converts tabular experimental data (CSV) into IMAS IDS
 
 The spreadsheet describes the **mapping** (what to write and where).  Further concerns describe the **data** instead, and live in a YAML sidecar rather than in a column: no-data placeholders, per-machine error bars, conflict-resolution rules and IMAS standard names (all per-variable), plus a single whole-database description (source, citation, credits).  See [The sidecar](#the-sidecar).
 
+### Getting started
+
+First, you need to install the project in editable mode. From the IDStools directory:
+
+`pip install -e .`
+
+The idsmigration script has an additional dependency on openpyxl and SimDB (optional):
+
+`pip install openpyxl imas-simdb`
+
+To run idsmigration, you need a data .csv file, and a crosswalk .xlsx file. There are four pre-made crosswalks in this directory under `resources/mappings`. The data .csv must be acquired yourself, as it cannot be made publically available in this repository. 
+
+For example, the TC-26 data is available as a supplement to `DOI: 10.1088/1741-4326/ae39f2` at `iopscience.iop.org`. The H-mode confinement data is hosted by OSF at `https://osf.io/drwcq/overview`. 
+
+Once you have this, you can run the migration script. As an example:
+
+`idsmigration -e tc26 -d {TC26_DATA}.csv -m TC26_crosswalk.xlsx --simdb`
+
+`-e tc26` selects the experiment directory relative to `resources/output` where IDS HDF5 files are written for each pulse, if running without --simdb.
+
+`-d {TC26_DATA}.csv` points to the location of the data .csv relative to `resources/input`. 
+
+`-m TC26_crosswalk.xlsx` selects the mapping file in `resources/mappings`.
+
+`--simdb` is an optional flag which skips the HDF5 write step, ingesting the in-memory IDSs into a local SimDB.
+
 ### Missing values and no-data markers
 
 A source value that does not match its target leaf's dtype (a string NA marker like `-`, `.` or `????`, an empty cell, any non-number bound for a numeric leaf) is dropped, leaving the leaf at its IMAS empty (`EMPTY_FLOAT`/`EMPTY_INT`). 
