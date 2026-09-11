@@ -54,17 +54,17 @@ Once you have this, you can run the migration script. As an example:
 
 ITPA databases often contain hundreds of variables/csv columns. Writing a crosswalk file that specifies the mapping consists roughly of the following inter-related steps:
 
-1. **BLANK CROSSWALK**: Using `generate_crosswalk` (located in `idstools/scripts/bin`) to create a blank spreadsheet with the proper columns and formulas:
+1. **BLANK CROSSWALK**: Using `generate_crosswalk` (located in `idstools/scripts`) to create a blank spreadsheet with the proper columns and formulas:
 
   `python generate_crosswalk [--output path/to/out.xlsx] [--num-rows 200]`
 
 2. **LEGACY PROVENANCE**: Transferring variable definitions from a (usually) .pdf file into the `csv_column`, `csv_description`, and `csv_unit` crosswalk columns.
 
-3. **DATASET PROFILING**: Running `dataset_statistics` (located in `idstools/scripts/bin`) on the obtained data .csv to generate a markdown "profile", to get a human-readable (and LLM-readable) description of the  raw data, to inform the subsequent steps.
+3. **DATASET PROFILING**: Running `dataset_statistics` (located in `idstools/scripts`) on the obtained data .csv to generate a markdown "profile", to get a human-readable (and LLM-readable) description of the  raw data, to inform the subsequent steps.
 
 4. **IMAS SEARCH**: Searching the IMAS Data Dictionary for candidate paths, placing these in `imas_path`, and effectively comparing the original database definitions (`csv_description`) to the IDS node descriptions (`imas_description`, automatically populated). 
 
-5. **DATA TRANSFORMATIONS**:Related to the previous step, one has to decide the appropriate transformation (`transform`, `transform_args`, potentially `source` and `source_fields` columns) for the chosen `imas_path`.
+5. **DATA TRANSFORMATIONS**: Related to the previous step, one has to decide the appropriate transformation (`transform`, `transform_args`, potentially `source` and `source_fields` columns) for the chosen `imas_path`.
 
 6. **DESIGNATING STATUS**: In tandem with the previous steps, once paths, transformations and arguments are decided, the `status` column should be designated. Any relevant information for the crosswalk "author(s)" involved in the whole decision process here should be recorded in the free-text `notes` column. `status` is conditional on the caveats of the mapping, particularly 
   - (Near-)exact match of source and target variable definitions, possibly with a transformation (`mapped`).
@@ -74,18 +74,18 @@ ITPA databases often contain hundreds of variables/csv columns. Writing a crossw
 
 7. **SIDECAR YAML**: In addition to the spreadsheet crosswalk, there is the .yaml sidecar. The YAML file is intended to record *data fields* relevant to the mapping, namely *sentinel values* (`sentinels:`), per-variable errors (`errors:`) and also database provenance information (`database:`). These fields are populated conditional on the data issues uncovered by `dataset_statistics` for sentinel values, and errors, which are sometimes available in the variable definition sheet.
 
-More detailed documentation for how the script treats these fields/attributes, rather then prescriptive information for how they should be filled, appears in the remainder of this file.
+More detailed documentation for how the script treats these fields/attributes, rather than prescriptive information for how they should be filled, appears in the remainder of this file.
 
 ### Use of LLMs in authoring the crosswalk
 
-The instructions detailed in the previous section is agnostic to whether the crosswalk author is human, an LLM, or most appropriately, a combination of both. Due to the remarkable pace at which these models are evolving, we cannot provide a final prescription for how agentic or collaborative workflow should operate -- different models across and within generations and service providers show different capabilities and weaknesses. 
+The instructions detailed in the previous section are agnostic to whether the crosswalk author is human, an LLM, or most appropriately, a combination of both. Due to the remarkable pace at which these models are evolving, we cannot provide a final prescription for how an agentic or collaborative workflow should operate -- different models across and within generations and service providers show different capabilities and weaknesses. 
 
-The following points are merely suggestions, based on the experience of developing this migration pipeline, and writing the crosswalks for the ITPA databases using varying degrees of automation, from full manual writing, partial use of LLMs,  and end-to-end use with minimal prompting; although never without a final review step that did not result in significant modifications to the output. Your mileage may vary.
+The following points are merely suggestions, based on the experience of developing this migration pipeline, and writing the crosswalks for the ITPA databases using varying degrees of automation, from fully manual writing, through partial use of LLMs, to and end-to-end use with minimal prompting; although never without a final review step that results in significant modifications to the output. Your mileage may vary.
 
   - **TOOLS**: The ***IMAS-DD MCP*** is an invaluable tool for this process. The public endpoint *https://imas-dd.iter.org/mcp* should be configured in your harness. The MCP allows queries of data-dictionary documentation for `imas_path`, and is crucial especially for the initial search based off of csv_description.
 
 
-  - **CONTEXT**: For context, we find it is best to provide access to as many ***previously authored crosswalk*** .xlsx and .yaml files as possible, in particular, the 4 pre-made crosswalks under `resources/mappings`. It is best to provide the ***relevant research paper*** associated with the database, (i.e. one or more that details the experimental and theoretical motivation, and conducts analysis on the database), since physical insight is the original intent for the curation, and the criterion for the inclusion/exclusion of information, of/from these databases. In addition, one should include the ***variable definition sheet*** for filling in the csv_* fields, and the ***raw data CSV*** in the context to conduct detailed investigations of anomolous values, and to inform the mapping process for a given variable. ***This document*** (`migration.md`) and access to the *idsmigration* python script is also crucial.
+  - **CONTEXT**: For context, we find it is best to provide access to as many ***previously authored crosswalk*** .xlsx and .yaml files as possible, in particular, the 4 pre-made crosswalks under `resources/mappings`. It is best to provide the ***relevant research paper*** associated with the database, (i.e. one or more papers that details the experimental and theoretical motivation, and conducts analysis on the database), since physical insight is the original intent for the curation, and the criterion for the inclusion/exclusion of information, of/from these databases. In addition, one should include the ***variable definition sheet*** for filling in the csv_* fields, and the ***raw data CSV*** in the context to conduct detailed investigations of anomalous values, and to inform the mapping process for a given variable. ***This document*** (`migration.md`) and access to the *idsmigration* python script are also crucial.
 
   - **PROMPT**: The prompt should be as detailed as possible, and should explicitly include automated *validation*, and automated/manual *review* steps at logical boundaries of the workflow. We suggest that you create your own crosswalk authoring **markdown** document in collaboration with an LLM which has the appropriate context (see previous point), which will act as a detailed, enumerated set of instructions. You should also ask the LLM to "interview you" after it performs a detailed search/ingestion of context to *resolve ambiguities* in your initial instruction and to *document your preferences*, especially pertaining to the `status` column, including general preferences for how marginal quantities, transformations, missing paths, etc. should be treated, as detailed in point (**6.**) of the **Authoring a crosswalk** section.
 
